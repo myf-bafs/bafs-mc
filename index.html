@@ -1559,7 +1559,10 @@ if (playerName && playerName !== "訪客") {
             // --- Google Sheet 即時紀錄 (總分 + 每題一行) ---
             logToGoogleSheet({ score, total, accuracy }) {
                 try {
-                    if (!GOOGLE_SHEET_URL) return;
+                    if (!GOOGLE_SHEET_URL) {
+                        console.warn('[Sheet] GOOGLE_SHEET_URL 未設定, 跳過同步');
+                        return;
+                    }
                     const nickname = (typeof playerName !== 'undefined' && playerName) ? playerName : '訪客';
                     const timestamp = new Date().toISOString();
                     const submissionId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
@@ -1581,15 +1584,27 @@ if (playerName && playerName !== "訪客") {
                         score, total, accuracy,
                         questions
                     };
+                    console.log('[Sheet] 正在同步交卷紀錄', payload);
                     fetch(GOOGLE_SHEET_URL, {
                         method: 'POST',
                         mode: 'no-cors',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(payload)
-                    }).catch(e => console.warn('Google Sheet 上傳失敗', e));
+                    }).then(() => console.log('[Sheet] 已送出 (no-cors 無法讀回應, 請到 Sheet/執行紀錄確認)')).catch(e => console.warn('Google Sheet 上傳失敗', e));
                 } catch (e) {
                     console.warn('Google Sheet 上傳失敗', e);
                 }
+            }
+
+            // 瀏覽器 Console 執行 testSheetSync() 可不交卷測試連線
+            testSheetSync() {
+                if (!GOOGLE_SHEET_URL) {
+                    this.showToast('GOOGLE_SHEET_URL 未設定');
+                    return Promise.resolve(false);
+                }
+                const payload = { timestamp: new Date().toISOString(), submissionId: 'TEST-' + Date.now(), nickname: '測試', year: '測試', mode: 'test', score: 1, total: 1, accuracy: 100, questions: [{ qid: 'TEST', qnum: 1, topic: '測試', userAns: 'A', correctAns: 'A', isCorrect: 1 }] };
+                console.log('[Sheet] 送出測試', payload);
+                return fetch(GOOGLE_SHEET_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(() => { console.log('[Sheet] 測試已送出, 請查 Sheet'); return true; });
             }
 
             // Modified to support Auto-Upload
@@ -1699,6 +1714,7 @@ async saveToLeaderboard(isAuto = false) {
 
         window.app = new BAFSApp();
         window.router = (view) => app.router(view);
+        window.testSheetSync = () => window.app.testSheetSync();
 
     </script>
 <script>

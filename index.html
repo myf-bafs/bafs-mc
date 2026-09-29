@@ -942,6 +942,11 @@
         // 建議使用: https://your-username.github.io/your-repo/QUESTIONS.js
         const GITHUB_DATA_URL = ''; 
 
+        // === 2b. Google Sheet 即時紀錄 (答對率) ===
+        // 做法: 用 Google Apps Script 建立 Web App, 把下面的 URL 貼上即可
+        // 留空 = 不啟用, 不影響原有 Firebase 龍虎榜功能
+        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxwFdtkRLkob2NjPkZmSwpdPt_f_RDIZfQlWMCFuMUckShITWcW94o2A5F3yVf-rRGqbg/exec';
+
         // === 3. FIREBASE CONFIG 設定區 ===
         const YOUR_FIREBASE_CONFIG = {
             apiKey: "AIzaSyBt7EdhDqdpNQuh1jo6AmCNO3Vgso-c8pg",
@@ -1432,6 +1437,10 @@
 
                 this.score = correctCount;
                 const total = this.currentQuestions.length;
+                const accuracy = total === 0 ? 0 : Math.round((correctCount / total) * 100);
+
+                // 即時送到 Google Sheet (老師睇答對率用, 失敗不影響交卷)
+                this.logToGoogleSheet({ score: correctCount, total, accuracy });
                 
                 this.stats.total += total;
                 this.stats.correct += correctCount;
@@ -1544,6 +1553,42 @@ if (playerName && playerName !== "訪客") {
                 } else {
                     navigator.clipboard.writeText(text);
                     this.showToast("成績已複製到剪貼簿！");
+                }
+            }
+
+            // --- Google Sheet 即時紀錄 (總分 + 每題一行) ---
+            logToGoogleSheet({ score, total, accuracy }) {
+                try {
+                    if (!GOOGLE_SHEET_URL) return;
+                    const nickname = (typeof playerName !== 'undefined' && playerName) ? playerName : '訪客';
+                    const timestamp = new Date().toISOString();
+                    const submissionId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+                    const questions = this.currentQuestions.map((q, idx) => {
+                        const ua = this.userAnswers[q.id];
+                        return {
+                            qid: q.id,
+                            qnum: idx + 1,
+                            topic: q.topic || '',
+                            userAns: ua === undefined ? '' : 'ABCD'[ua],
+                            correctAns: 'ABCD'[q.answer],
+                            isCorrect: ua === q.answer ? 1 : 0
+                        };
+                    });
+                    const payload = {
+                        timestamp, submissionId, nickname,
+                        year: this.selectedYear,
+                        mode: this.mode,
+                        score, total, accuracy,
+                        questions
+                    };
+                    fetch(GOOGLE_SHEET_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(payload)
+                    }).catch(e => console.warn('Google Sheet 上傳失敗', e));
+                } catch (e) {
+                    console.warn('Google Sheet 上傳失敗', e);
                 }
             }
 

@@ -142,6 +142,28 @@
 			}
 }
     </style>
+
+    <script>
+        // 安全工具：任何不可信文字（暱稱、年份、URL 參數、Firestore 欄位）
+        // 插入 innerHTML 之前必須先經 escapeHtml
+        function escapeHtml(value) {
+            const s = (value === undefined || value === null) ? '' : String(value);
+            return s.replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;',
+                '"': '&quot;', "'": '&#39;'
+            })[c]);
+        }
+
+        // 名稱清理（防 XSS 第一層）：移除控制字元、尖括號與引號，限制 20 字
+        function sanitizeName(raw, fallback = '訪客') {
+            const cleaned = (raw === undefined || raw === null ? '' : String(raw))
+                .replace(/[\u0000-\u001F\u007F]/g, '')
+                .replace(/[<>"'`]/g, '')
+                .trim()
+                .slice(0, 20);
+            return cleaned || fallback;
+        }
+    </script>
 </head>
 <body class="bg-yellow-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
 
@@ -176,6 +198,7 @@
         <a href="#" onclick="app.router('home'); document.getElementById('mobile-menu').classList.add('hidden')">主頁</a>
         <a href="#" onclick="app.router('mistakes'); document.getElementById('mobile-menu').classList.add('hidden')">我的錯題本</a>
         <a href="#" onclick="app.router('leaderboard'); document.getElementById('mobile-menu').classList.add('hidden')">龍虎榜</a>
+        <a href="#" onclick="app.router('analysis'); document.getElementById('mobile-menu').classList.add('hidden')">成績分析</a>
     </div>
 
     <!-- Main Content Area -->
@@ -212,7 +235,7 @@
             </div>
 
             <!-- Stats Grid -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-3 md:grid-cols-5 gap-4">
                 <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800">
                     <div class="text-3xl font-bold text-brand-blue" id="stat-total-done">0</div>
                     <div class="text-sm font-bold text-gray-500 dark:text-gray-300">已做題數</div>
@@ -228,6 +251,10 @@
                 <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onclick="app.router('leaderboard')">
                     <div class="text-3xl font-bold text-brand-yellow"><i class="fa-solid fa-trophy"></i></div>
                     <div class="text-sm font-bold text-gray-500 dark:text-gray-300">龍虎榜</div>
+                </div>
+                <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700" onclick="app.router('analysis')">
+                    <div class="text-3xl font-bold text-brand-blue"><i class="fa-solid fa-chart-pie"></i></div>
+                    <div class="text-sm font-bold text-gray-500 dark:text-gray-300">成績分析</div>
                 </div>
             </div>
 
@@ -261,9 +288,6 @@
     30:00
 </div>	
                 <div class="flex items-center gap-4">
-                    <div id="timer-display" class="text-xl font-mono font-bold bg-black text-brand-green px-3 py-1 rounded border-2 border-gray-500 hidden">
-                        75:00
-                    </div>
                     <button onclick="app.endQuizEarly()" class="text-sm underline text-red-500 font-bold">結束練習</button>
                 </div>
             </div>
@@ -335,7 +359,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-3 gap-4 mb-6">
                     <div class="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg border-2 border-green-200 dark:border-green-800">
                         <div class="text-2xl font-bold text-green-600 dark:text-green-400" id="result-correct">0</div>
                         <div class="text-xs uppercase font-bold text-green-800 dark:text-green-200">正確</div>
@@ -343,6 +367,10 @@
                     <div class="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg border-2 border-red-200 dark:border-red-800">
                         <div class="text-2xl font-bold text-red-600 dark:text-red-400" id="result-wrong">0</div>
                         <div class="text-xs uppercase font-bold text-red-800 dark:text-red-200">錯誤</div>
+                    </div>
+                    <div class="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600">
+                        <div class="text-2xl font-bold text-gray-600 dark:text-gray-300" id="result-unanswered">0</div>
+                        <div class="text-xs uppercase font-bold text-gray-500 dark:text-gray-400">未作答</div>
                     </div>
                 </div>
 
@@ -363,6 +391,7 @@
             <div class="flex justify-center gap-4">
                 <button onclick="app.router('home')" class="cartoon-btn bg-white dark:bg-gray-700 px-6 py-3 rounded-xl">回到主頁</button>
                 <button onclick="app.router('mistakes')" class="cartoon-btn bg-brand-red text-white px-6 py-3 rounded-xl">查看錯題</button>
+                <button onclick="app.router('analysis')" class="cartoon-btn bg-brand-blue text-white px-6 py-3 rounded-xl">成績分析</button>
             </div>
         </div>
 
@@ -410,6 +439,87 @@
                 </table>
             </div>
             <button onclick="app.router('home')" class="mt-8 cartoon-btn bg-white dark:bg-gray-700 w-full py-3 rounded-xl">返回</button>
+        </div>
+
+        <!-- === ANALYSIS VIEW === -->
+        <div id="analysis-view" class="hidden-page">
+            <div class="text-center mb-8 relative">
+                <h2 class="text-3xl font-bold cartoon-font bg-brand-blue text-white inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">成績分析</h2>
+                <p class="mt-4 text-gray-500 dark:text-gray-400">邊個課題最弱・邊題成日錯</p>
+                <button onclick="app.clearAnalysis()" class="absolute right-0 top-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 px-3 py-1 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600">
+                    <i class="fa-solid fa-trash-can"></i> 清除數據
+                </button>
+            </div>
+
+            <div id="analysis-empty" class="text-center py-20 hidden">
+                <i class="fa-solid fa-chart-pie text-6xl text-gray-300 mb-4"></i>
+                <p class="text-xl font-bold text-gray-500">仲未有作答紀錄</p>
+                <p class="text-sm text-gray-400 mt-2">完成至少一次測驗，就會開始統計你嘅強弱項</p>
+                <button onclick="app.router('home')" class="mt-4 cartoon-btn bg-brand-blue text-white px-6 py-2 rounded-lg">去練習</button>
+            </div>
+
+            <div id="analysis-body" class="space-y-8">
+                <!-- Summary -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800">
+                        <div class="text-3xl font-bold text-brand-blue" id="ana-total-ans">0</div>
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-300">已作答題數</div>
+                    </div>
+                    <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800">
+                        <div class="text-3xl font-bold text-brand-green" id="ana-accuracy">0%</div>
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-300">整體正確率</div>
+                    </div>
+                    <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800 flex flex-col justify-center">
+                        <div class="text-lg font-bold text-brand-red leading-tight break-words" id="ana-weak-topic">—</div>
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-300 mt-1">最弱課題</div>
+                    </div>
+                    <div class="cartoon-card p-4 text-center bg-white dark:bg-gray-800">
+                        <div class="text-3xl font-bold text-brand-yellow" id="ana-sessions">0</div>
+                        <div class="text-sm font-bold text-gray-500 dark:text-gray-300">練習次數</div>
+                    </div>
+                </div>
+
+                <!-- Topic breakdown -->
+                <div class="cartoon-card p-6 bg-white dark:bg-gray-800">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-layer-group text-brand-blue"></i> 各課題正確率（由弱到強）
+                    </h3>
+                    <div id="ana-topics" class="space-y-3"></div>
+                    <p class="text-xs text-gray-400 mt-4">作答少於 3 題嘅課題只作參考</p>
+                </div>
+
+                <!-- Weak questions -->
+                <div class="cartoon-card p-6 bg-white dark:bg-gray-800">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-brand-red"></i> 需要重溫嘅題目
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-black text-white">
+                                <tr>
+                            <th class="p-3">題號</th>
+                            <th class="p-3">課題</th>
+                            <th class="p-3 text-right">錯</th>
+                            <th class="p-3 text-right whitespace-nowrap">錯誤率</th>
+                            <th class="p-3 hidden md:table-cell">題目</th>
+                            <th class="p-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ana-weak-list"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- History -->
+                <div class="cartoon-card p-6 bg-white dark:bg-gray-800">
+                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-brand-green"></i> 最近練習
+                    </h3>
+                    <div id="ana-history" class="space-y-2"></div>
+                </div>
+
+                <button onclick="app.router('home')" class="cartoon-btn bg-white dark:bg-gray-700 w-full py-3 rounded-xl">返回</button>
+            </div>
         </div>
 
     </main>
@@ -945,7 +1055,7 @@
         // === 2b. Google Sheet 即時紀錄 (答對率) ===
         // 做法: 用 Google Apps Script 建立 Web App, 把下面的 URL 貼上即可
         // 留空 = 不啟用, 不影響原有 Firebase 龍虎榜功能
-        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxwFdtkRLkob2NjPkZmSwpdPt_f_RDIZfQlWMCFuMUckShITWcW94o2A5F3yVf-rRGqbg/exec';
+        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbzqqyt8dl4ni3fX94Zsd1MUS9svPZwGrXgggyGLgzBCYzdAbo3OCb-zmFlDakvv4prp5Q/exec';
 
         // === 3. FIREBASE CONFIG 設定區 ===
         const YOUR_FIREBASE_CONFIG = {
@@ -1003,9 +1113,30 @@
                 this.selectedYear = null;
                 this.mistakes = JSON.parse(localStorage.getItem('bafs_mistakes')) || [];
                 this.stats = JSON.parse(localStorage.getItem('bafs_stats')) || { total: 0, correct: 0 };
+                this.qstats = this.loadStore('bafs_qstats', {});
+                this.migrateQstats();
+                this.history = this.loadStore('bafs_history', []);
                 this.currentEditingId = null; // null = add mode, string = edit mode ID
                 
                 this.init();
+            }
+
+            loadStore(key, fallback) {
+                try {
+                    const raw = localStorage.getItem(key);
+                    return raw ? JSON.parse(raw) : fallback;
+                } catch (e) {
+                    console.warn('[Store] 讀取失敗，改用預設值:', key, e);
+                    return fallback;
+                }
+            }
+
+            saveStore(key, value) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (e) {
+                    console.warn('[Store] 寫入失敗 (可能超出容量):', key, e);
+                }
             }
 
             init() {
@@ -1106,6 +1237,7 @@
                     
                     if(viewId === 'mistakes') this.renderMistakes();
                     if(viewId === 'leaderboard') this.loadLeaderboard();
+                    if(viewId === 'analysis') this.renderAnalysis();
                 }
             }
 
@@ -1229,11 +1361,8 @@
                 const mode = timerMode === 'none' ? 'practice' : 'exam';
                 this.mode = mode;
 
-                if (mode === 'exam') {
-                    this.timeRemaining = minutes * 60;
-                }
-
-                this.startQuiz(mode, true); // true 表示是自訂測驗，不用再過濾年份
+                const customSeconds = (mode === 'exam' && Number.isFinite(minutes) && minutes > 0) ? minutes * 60 : null;
+                this.startQuiz(mode, true, customSeconds); // true 表示是自訂測驗，不用再過濾年份
             }
 			
 
@@ -1249,7 +1378,7 @@
             }
 
             // --- Quiz Logic ---
-            startQuiz(mode, isSearch = false) {
+            startQuiz(mode, isSearch = false, customSeconds = null) {
                 document.getElementById('mode-modal').classList.add('hidden');
                 this.mode = mode;
                 
@@ -1274,7 +1403,9 @@
 
                 const timerDisplay = document.getElementById('timer-display');
                 if (mode === 'exam') {
-                    if (this.selectedYear.includes("模擬卷")) {
+                    if (customSeconds) {
+                        this.timeRemaining = customSeconds;
+                    } else if (this.selectedYear.includes("模擬卷")) {
                         this.timeRemaining = 30 * 60;
                     } else if (this.selectedYear.includes("小測")) {
                         this.timeRemaining = 20 * 60;
@@ -1294,15 +1425,23 @@
             startTimer() {
                 clearInterval(this.timerInterval);
                 const display = document.getElementById('timer-display');
-                
+
                 this.timerInterval = setInterval(() => {
                     this.timeRemaining--;
+                    if (this.timeRemaining < 0) this.timeRemaining = 0;
                     const m = Math.floor(this.timeRemaining / 60);
                     const s = this.timeRemaining % 60;
                     display.innerText = `${m}:${s < 10 ? '0'+s : s}`;
-                    
+
                     if (this.timeRemaining <= 0) {
-                        this.endQuizEarly();
+                        // 必須先停表，否則按「取消」會令 interval 繼續跑、每秒彈一次 confirm
+                        clearInterval(this.timerInterval);
+                        this.timerInterval = null;
+                        if (confirm("時間已用完，確定交卷？")) {
+                            this.submitQuiz();
+                        } else {
+                            this.showToast("時間已用完，倒數計時已停止");
+                        }
                     }
                 }, 1000);
             }
@@ -1423,35 +1562,42 @@
             submitQuiz() {
                 clearInterval(this.timerInterval);
                 
-                let correctCount = 0;
+                let correctCount = 0, answeredCount = 0;
                 this.currentQuestions.forEach(q => {
-                    const key = q.id || this.currentQuestions.indexOf(q);
                     const userAns = this.userAnswers[q.id];
+                    if (userAns === undefined) return;   // 未作答：唔計對錯
+                    answeredCount++;
                     
                     if (userAns === q.answer) {
                         correctCount++;
-                    } else if (this.mode === 'exam' && userAns !== undefined) {
+                    } else if (this.mode === 'exam') {
                         this.addMistake(q);
                     }
                 });
 
                 this.score = correctCount;
                 const total = this.currentQuestions.length;
-                const accuracy = total === 0 ? 0 : Math.round((correctCount / total) * 100);
+                const wrongCount = answeredCount - correctCount;
+                const unansweredCount = total - answeredCount;
+                const accuracy = answeredCount === 0 ? 0 : Math.round((correctCount / answeredCount) * 100);
 
                 // 即時送到 Google Sheet (老師睇答對率用, 失敗不影響交卷)
-                this.logToGoogleSheet({ score: correctCount, total, accuracy });
+                this.logToGoogleSheet({ score: correctCount, total, accuracy, answered: answeredCount });
                 
-                this.stats.total += total;
+                this.stats.total += answeredCount;
                 this.stats.correct += correctCount;
                 localStorage.setItem('bafs_stats', JSON.stringify(this.stats));
                 this.updateStatsUI();
+
+                // 逐題統計（邊個課題／邊題做得差，用嚟做「成績分析」）
+                this.recordSubmission({ correctCount, answered: answeredCount, unanswered: unansweredCount });
 
                 document.getElementById('result-subtitle').innerText = `${this.selectedYear} • ${this.mode === 'exam' ? '模擬考' : '練習'}`;
                 document.getElementById('result-score').innerText = this.score;
                 document.getElementById('result-total').innerText = total;
                 document.getElementById('result-correct').innerText = correctCount;
-                document.getElementById('result-wrong').innerText = total - correctCount;
+                document.getElementById('result-wrong').innerText = wrongCount;
+                document.getElementById('result-unanswered').innerText = unansweredCount;
 
 // 自動上傳到龍虎榜（使用 playerName）
 if (playerName && playerName !== "訪客") {
@@ -1462,7 +1608,7 @@ if (playerName && playerName !== "訪客") {
 }
                 this.router('result');
                 
-                if (correctCount / total > 0.5) {
+                if (answeredCount > 0 && correctCount / answeredCount > 0.5) {
                     this.fireConfetti();
                 }
 
@@ -1546,6 +1692,187 @@ if (playerName && playerName !== "訪客") {
                 document.getElementById('stat-mistakes').innerText = this.mistakes.length;
             }
 
+            // --- 成績分析：逐題／逐課題統計（用 localStorage 保存） ---
+            // 舊版 a 包埋「未作答」→ 減返 s；之後 a 只計已作答
+            migrateQstats() {
+                if (localStorage.getItem('bafs_qstats_v') === '2') return;
+                Object.values(this.qstats || {}).forEach(r => {
+                    if (typeof r.a === 'number' && typeof r.s === 'number') {
+                        r.a = Math.max(0, r.a - r.s);
+                    }
+                });
+                this.saveStore('bafs_qstats', this.qstats);
+                localStorage.setItem('bafs_qstats_v', '2');
+            }
+
+            recordSubmission({ correctCount, answered, unanswered = 0 }) {
+                const now = Date.now();
+                this.currentQuestions.forEach((q, idx) => {
+                    const qid = q.id || idx;                       // 同 selectOption 用同一把 key
+                    const userAns = this.userAnswers[qid];
+                    const rec = this.qstats[qid] || { topic: q.topic || '未分類', year: q.year || '', a: 0, c: 0, w: 0, s: 0 };
+                    if (userAns === undefined) {
+                        // 未作答：只記落 s，唔計入 a/c/w
+                        rec.s += 1;
+                    } else {
+                        rec.a += 1;
+                        if (userAns === q.answer) rec.c += 1;
+                        else rec.w += 1;
+                    }
+                    rec.last = now;
+                    this.qstats[qid] = rec;
+                });
+
+                this.history.unshift({ t: now, year: this.selectedYear || '', mode: this.mode, c: correctCount, n: answered, u: unanswered });
+                if (this.history.length > 100) this.history.length = 100;
+
+                this.saveStore('bafs_qstats', this.qstats);
+                this.saveStore('bafs_history', this.history);
+            }
+
+            questionLabel(q, qid) {
+                if (!q) return String(qid);
+                if (!q.id) return q.year || String(qid);
+                return `${q.year} Q${String(q.id).slice(-2).replace(/^0+/, '')}`;
+            }
+
+            findQuestion(qid) {
+                return (window.BAFS_DB || []).find(x => String(x.id) === String(qid));
+            }
+
+            renderAnalysis() {
+                const empty = document.getElementById('analysis-empty');
+                const body = document.getElementById('analysis-body');
+                const entries = Object.entries(this.qstats || {});
+
+                if (entries.length === 0) {
+                    empty.classList.remove('hidden');
+                    body.classList.add('hidden');
+                    return;
+                }
+                empty.classList.add('hidden');
+                body.classList.remove('hidden');
+
+                // 1) 彙總
+                let answered = 0, correct = 0;
+                const topicAgg = {};
+                entries.forEach(([, r]) => {
+                    answered += r.a;          // a 只計已作答
+                    correct += r.c;
+                    const t = topicAgg[r.topic] || (topicAgg[r.topic] = { a: 0, c: 0, w: 0, s: 0, q: 0 });
+                    t.a += r.a; t.c += r.c; t.w += r.w; t.s += (r.s || 0); t.q += 1;
+                });
+
+                document.getElementById('ana-total-ans').innerText = answered;
+                document.getElementById('ana-accuracy').innerText = answered === 0 ? '0%' : Math.round((correct / answered) * 100) + '%';
+                document.getElementById('ana-sessions').innerText = this.history.length;
+
+                // 2) 課題：由弱到強（作答 < 3 次排後面，只作參考）
+                const topicRows = Object.entries(topicAgg).map(([name, v]) => ({
+                    name, a: v.a, c: v.c, w: v.w, q: v.q,
+                    rate: v.a === 0 ? 0 : v.c / v.a
+                })).sort((x, y) => {
+                    const sx = x.a >= 3 ? 0 : 1, sy = y.a >= 3 ? 0 : 1;
+                    if (sx !== sy) return sx - sy;
+                    return x.rate - y.rate;
+                });
+
+                document.getElementById('ana-weak-topic').innerText = topicRows.length ? topicRows[0].name : '—';
+
+                document.getElementById('ana-topics').innerHTML = topicRows.map(t => {
+                    const pct = Math.round(t.rate * 100);
+                    const color = pct >= 70 ? 'bg-brand-green' : (pct >= 50 ? 'bg-brand-yellow' : 'bg-brand-red');
+                    const ref = t.a < 3 ? ' <span class="text-xs font-normal text-gray-400">(參考)</span>' : '';
+                    return `
+                    <div>
+                        <div class="flex justify-between items-center text-sm font-bold mb-1 gap-2">
+                            <span class="break-words">${escapeHtml(t.name)}${ref} <span class="text-gray-400 font-normal">${t.q} 題・作答 ${t.a} 次</span></span>
+                            <span class="shrink-0">${pct}%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 dark:bg-gray-700 h-4 border-2 border-black rounded-full overflow-hidden">
+                            <div class="${color} h-full transition-all duration-500" style="width:${pct}%"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                // 3) 最差題目
+                const weak = entries
+                    .filter(([, r]) => r.w > 0)
+                    .map(([qid, r]) => ({ qid, r, q: this.findQuestion(qid), rate: r.a ? r.w / r.a : 0 }))
+                    .sort((x, y) => (y.rate - x.rate) || (y.r.w - x.r.w))
+                    .slice(0, 15);
+
+                const weakBody = document.getElementById('ana-weak-list');
+                if (weak.length === 0) {
+                    weakBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">暫時冇錯題，繼續保持！</td></tr>';
+                } else {
+                    weakBody.innerHTML = weak.map(item => {
+                        const pct = Math.round(item.rate * 100);
+                        const excerpt = item.q ? String(item.q.question).replace(/\s+/g, ' ').slice(0, 40) : '(題目已不在題庫)';
+                        const canAdd = !!item.q;
+                        return `
+                        <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <td class="p-3 font-bold whitespace-nowrap">${escapeHtml(this.questionLabel(item.q, item.qid))}</td>
+                            <td class="p-3">${escapeHtml(item.r.topic)}</td>
+                            <td class="p-3 text-right font-bold text-red-500">${item.r.w}</td>
+                            <td class="p-3 text-right font-bold ${pct >= 60 ? 'text-red-500' : 'text-orange-400'}">${pct}%</td>
+                            <td class="p-3 text-gray-500 hidden md:table-cell">${escapeHtml(excerpt)}${item.q && item.q.question.length > 40 ? '…' : ''}</td>
+                            <td class="p-3 text-right whitespace-nowrap">${canAdd
+                                ? `<button class="text-xs text-brand-blue underline font-bold whitespace-nowrap" data-qid="${escapeHtml(item.qid)}" onclick="app.addMistakeByQid(this.dataset.qid)">加入錯題本</button>`
+                                : '<span class="text-xs text-gray-400">—</span>'}</td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                // 4) 最近練習
+                const histEl = document.getElementById('ana-history');
+                const hist = (this.history || []).slice(0, 10);
+                if (hist.length === 0) {
+                    histEl.innerHTML = '<p class="text-gray-400 text-sm">未有紀錄</p>';
+                } else {
+                    histEl.innerHTML = hist.map(h => {
+                        const d = new Date(h.t);
+                        const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                        const pct = h.n ? Math.round((h.c / h.n) * 100) : 0;
+                        const color = pct >= 70 ? 'text-brand-green' : (pct >= 50 ? 'text-yellow-500' : 'text-brand-red');
+                        const skip = h.u ? ` <span class="text-gray-400 font-normal">・未答 ${h.u}</span>` : '';
+                        return `
+                        <div class="flex justify-between items-center text-sm border-b dark:border-gray-700 pb-2">
+                            <span class="font-bold">${escapeHtml(dateStr)}</span>
+                            <span class="text-gray-500">${escapeHtml(h.year)} • ${h.mode === 'exam' ? '模擬考' : '練習'}</span>
+                            <span class="font-mono font-bold ${color}">${h.c}/${h.n} (${pct}%)${skip}</span>
+                        </div>`;
+                    }).join('');
+                }
+            }
+
+            addMistakeByQid(qid) {
+                const q = this.findQuestion(qid);
+                if (!q) {
+                    this.showToast("找不到該題目（可能已不在題庫）");
+                    return;
+                }
+                const key = q.id || q.question;
+                if (this.mistakes.find(m => (m.id || m.question) === key)) {
+                    this.showToast("呢題已經喺錯題本入面");
+                    return;
+                }
+                this.mistakes.push(q);
+                this.saveStore('bafs_mistakes', this.mistakes);
+                this.updateStatsUI();
+                this.showToast("已加入錯題本 ✓");
+            }
+
+            clearAnalysis() {
+                if (!confirm("確定清除所有分析數據？此動作無法復原。")) return;
+                this.qstats = {};
+                this.history = [];
+                this.saveStore('bafs_qstats', this.qstats);
+                this.saveStore('bafs_history', this.history);
+                this.renderAnalysis();
+                this.showToast("分析數據已清除");
+            }
+
             shareResult() {
                 const text = `我剛在 BAFS 狀元工廠 (${this.selectedYear}) 拿到 ${this.score}/${this.currentQuestions.length} 分！快來挑戰！`;
                 if (navigator.share) {
@@ -1557,13 +1884,13 @@ if (playerName && playerName !== "訪客") {
             }
 
             // --- Google Sheet 即時紀錄 (總分 + 每題一行) ---
-            logToGoogleSheet({ score, total, accuracy }) {
+            logToGoogleSheet({ score, total, accuracy, answered }) {
                 try {
                     if (!GOOGLE_SHEET_URL) {
                         console.warn('[Sheet] GOOGLE_SHEET_URL 未設定, 跳過同步');
                         return;
                     }
-                    const nickname = (typeof playerName !== 'undefined' && playerName) ? playerName : '訪客';
+                    const nickname = sanitizeName(typeof playerName !== 'undefined' && playerName ? playerName : '');
                     const timestamp = new Date().toISOString();
                     const submissionId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
                     const questions = this.currentQuestions.map((q, idx) => {
@@ -1572,9 +1899,12 @@ if (playerName && playerName !== "訪客") {
                             qid: q.id,
                             qnum: idx + 1,
                             topic: q.topic || '',
+                            // 題目文字（壓縮空白 + 截斷），等 Sheet 可以顯示邊條題
+                            qtext: String(q.question || '').replace(/\s+/g, ' ').slice(0, 300),
                             userAns: ua === undefined ? '' : 'ABCD'[ua],
                             correctAns: 'ABCD'[q.answer],
-                            isCorrect: ua === q.answer ? 1 : 0
+                            // 未作答 isCorrect 照樣 0，Sheet 端用 userAns === '' 分開處理
+                            isCorrect: ua !== undefined && ua === q.answer ? 1 : 0
                         };
                     });
                     const payload = {
@@ -1582,6 +1912,7 @@ if (playerName && playerName !== "訪客") {
                         year: this.selectedYear,
                         mode: this.mode,
                         score, total, accuracy,
+                        answered: answered === undefined ? total : answered,
                         questions
                     };
                     console.log('[Sheet] 正在同步交卷紀錄', payload);
@@ -1602,7 +1933,7 @@ if (playerName && playerName !== "訪客") {
                     this.showToast('GOOGLE_SHEET_URL 未設定');
                     return Promise.resolve(false);
                 }
-                const payload = { timestamp: new Date().toISOString(), submissionId: 'TEST-' + Date.now(), nickname: '測試', year: '測試', mode: 'test', score: 1, total: 1, accuracy: 100, questions: [{ qid: 'TEST', qnum: 1, topic: '測試', userAns: 'A', correctAns: 'A', isCorrect: 1 }] };
+                const payload = { timestamp: new Date().toISOString(), submissionId: 'TEST-' + Date.now(), nickname: '測試', year: '測試', mode: 'test', score: 1, total: 1, accuracy: 100, questions: [{ qid: 'TEST', qnum: 1, topic: '測試', qtext: '測試題目', userAns: 'A', correctAns: 'A', isCorrect: 1 }] };
                 console.log('[Sheet] 送出測試', payload);
                 return fetch(GOOGLE_SHEET_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(() => { console.log('[Sheet] 測試已送出, 請查 Sheet'); return true; });
             }
@@ -1614,14 +1945,14 @@ async saveToLeaderboard(isAuto = false) {
         await signInAnonymously(auth);
     }
 
-    // 直接使用我們的名字系統的 playerName
-    let nickname = playerName || "訪客";
+    // 直接使用我們的名字系統的 playerName（寫入 Firestore 前再清理一次）
+    let nickname = sanitizeName(playerName);
 
     // 如果是手動上傳，可以再問一次（可選）
     if (!isAuto) {
-        const input = prompt("請確認或修改你的龍虎榜暱稱：", nickname);
-        if (input && input.trim() !== "") {
-            nickname = input.trim();
+        const input = sanitizeName(prompt("請確認或修改你的龍虎榜暱稱：", nickname), '');
+        if (input) {
+            nickname = input;
             // 可選：同步更新 playerName
             playerName = nickname;
             localStorage.setItem('bafsPlayerName', nickname);
@@ -1684,9 +2015,9 @@ async saveToLeaderboard(isAuto = false) {
                         const row = `
                             <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <td class="p-4 ${rankClass}">${icon} ${idx + 1}</td>
-                                <td class="p-4 font-bold">${entry.nickname}</td>
-                                <td class="p-4 text-sm text-gray-500 hidden md:table-cell">${entry.year}</td>
-                                <td class="p-4 text-right font-mono font-bold text-brand-blue">${entry.score}</td>
+                                <td class="p-4 font-bold">${escapeHtml(entry.nickname)}</td>
+                                <td class="p-4 text-sm text-gray-500 hidden md:table-cell">${escapeHtml(entry.year)}</td>
+                                <td class="p-4 text-right font-mono font-bold text-brand-blue">${escapeHtml(entry.score)}</td>
                             </tr>
                         `;
                         tbody.innerHTML += row;
@@ -1696,7 +2027,7 @@ async saveToLeaderboard(isAuto = false) {
                     console.error(e);
                     tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">
                         無法載入數據<br>
-                        <span class="text-xs text-gray-500">${e.message}</span><br>
+                        <span class="text-xs text-gray-500">${escapeHtml(e.message)}</span><br>
                         <span class="text-xs">請檢查 Firestore 規則是否設為 Test Mode</span>
                     </td></tr>`;
                 }
@@ -1724,7 +2055,8 @@ let playerName = "訪客";
 // 頁面載入時自動讀取名字
 function loadPlayerName() {
     const urlParams = new URLSearchParams(window.location.search);
-    playerName = urlParams.get('name') || localStorage.getItem('bafsPlayerName') || "訪客";
+    // URL ?name= 係攻擊面：未清理嘅值會流入龍虎榜
+    playerName = sanitizeName(urlParams.get('name') || localStorage.getItem('bafsPlayerName'));
     
     const span = document.getElementById('username-span');
     if (span) {
@@ -1734,9 +2066,9 @@ function loadPlayerName() {
 
 // 更改名字函數
 function changeName() {
-    const newName = prompt("請輸入你要顯示的名字（會用來上龍虎榜）：", playerName);
-    if (newName && newName.trim() !== "") {
-        playerName = newName.trim();
+    const newName = sanitizeName(prompt("請輸入你要顯示的名字（會用來上龍虎榜）：", playerName), '');
+    if (newName) {
+        playerName = newName;
         localStorage.setItem('bafsPlayerName', playerName);
         document.getElementById('username-span').innerText = playerName;
         

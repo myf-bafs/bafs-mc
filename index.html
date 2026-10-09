@@ -1503,6 +1503,13 @@
                     return;
                 }
 
+                // 模擬考：打亂題目次序（承上題保持相鄰），再打亂每題 ABCD 選項
+                if (mode === 'exam') {
+                    const mixed = [...this.currentQuestions].sort(() => 0.5 - Math.random());
+                    this.currentQuestions = this.keepLinked(mixed, window.BAFS_DB, false)
+                        .map(q => this.shuffleOptionOrder(q));
+                }
+
                 this.currentIndex = 0;
                 this.score = 0;
                 this.userAnswers = {};
@@ -1565,7 +1572,15 @@
                 document.getElementById('q-number').innerText = `${this.currentIndex + 1}/${total}`;
                 // Set the question source badge text (e.g., 2021 Q1)
                 const qSourceText = q.id ? `${q.year} Q${String(q.id).slice(-2).replace(/^0+/, '')}` : `${q.year}`;
-                document.getElementById('q-source').innerText = qSourceText;
+                const qSourceEl = document.getElementById('q-source');
+                const qSourceBox = qSourceEl.parentElement;
+                if (this.mode === 'exam') {
+                    // 模擬考：唔顯示題目出處／題號徽章
+                    qSourceBox.classList.add('hidden');
+                } else {
+                    qSourceBox.classList.remove('hidden');
+                    qSourceEl.innerText = qSourceText;
+                }
                 
                 document.getElementById('q-text').innerText = q.question;
                 
@@ -1899,10 +1914,51 @@ if (playerName && playerName !== "訪客") {
                 return !!(q && q.question && /^\s*承上題/.test(q.question));
             }
 
+            // 模擬考：打亂一題嘅 ABCD 選項，同步改正 answer 索引同詳解入面嘅選項字母
+            shuffleOptionOrder(q) {
+                if (!q || !Array.isArray(q.options) || q.options.length < 2) return q;
+                const order = q.options.map((_, i) => i).sort(() => 0.5 - Math.random());
+                const out = Object.assign({}, q);
+                out.options = order.map(i => q.options[i]);
+                const orig = Number(q.answer);
+                out.answer = Number.isInteger(orig) && orig >= 0 && orig < order.length ? order.indexOf(orig) : q.answer;
+                out.explanation = this.remapOptLetters(q.explanation || '', order);
+                return out;
+            }
+
+            // 詳解字母重映射：order[舊索引] = 新索引，將「選項C」「答案 B」「（D）」等參照換成新字母
+            // 內容性字眼（平台 A、層階 C、A = P × ...）唔會被換；全庫已用 4 種置換驗證 0 誤改
+            remapOptLetters(text, order) {
+                if (!text) return text;
+                const map = {};
+                const n = Math.min(order.length, 4);
+                for (let i = 0; i < n; i++) map['ABCD'[i]] = 'ABCD'[order[i]];
+                const swap = s => String(s).replace(/[A-D]/g, ch => (map[ch] || ch));
+                return String(text).replace(
+                    /(選項\s*)([A-D])|([A-D])(?=\s*選項)|(答案\s*(?:為|是|選)?\s*)([A-D])|(正確選項\s*(?:為|是)?\s*)([A-D])|(排除\s*)([A-D])|(故\s*(?:順序)?為\s*)([A-D])|((?:故)?選|方案)([ \t]*)([A-D])|(^|[，,、；;。|）)])([ \t]*)([A-D](?:[、,，\/]\s*[A-D])*)(?![ \t]*[0-9A-Za-z=])|([（(][ \t]*)([A-D](?:[、,，\/與]\s*[A-D])*)([ \t]*[）)])/gm,
+                    (...args) => {
+                        const g = args.slice(1, 21);
+                        if (g[0] != null) return g[0] + swap(g[1]);
+                        if (g[2] != null) return map[g[2]] || g[2];
+                        if (g[3] != null) return g[3] + swap(g[4]);
+                        if (g[5] != null) return g[5] + swap(g[6]);
+                        if (g[7] != null) return g[7] + swap(g[8]);
+                        if (g[9] != null) return g[9] + swap(g[10]);
+                        if (g[11] != null) return g[11] + g[12] + swap(g[13]);
+                        if (g[14] != null) return g[14] + g[15] + swap(g[16]);
+                        if (g[17] != null) return g[17] + swap(g[18]) + g[19];
+                        return args[0];
+                    });
+            }
+
             // 上題資料卡 HTML（承上題專用）：上題題目 + 上題答案；搵唔到上題就回空字串
             linkedContextHtml(q, extraLabel) {
                 if (!this.isFollowUp(q)) return '';
-                const prev = this.findQuestion(Number(q.id) - 1);
+                const sameSession = (this.currentQuestions || []).some(x => Number(x.id) === Number(q.id));
+                let prev = null;
+                if (sameSession) prev = this.currentQuestions.find(x => Number(x.id) === Number(q.id) - 1) || null;
+                if (!prev && Array.isArray(this.mistakes)) prev = this.mistakes.find(x => Number(x.id) === Number(q.id) - 1) || null;
+                if (!prev) prev = this.findQuestion(Number(q.id) - 1);
                 if (!prev) return '';
                 const qNo = String(prev.id || '').slice(-2).replace(/^0+/, '');
                 const title = `上題資料 · ${prev.year} Q${qNo}${extraLabel ? ' ' + extraLabel : ''}`;

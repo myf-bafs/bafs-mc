@@ -304,9 +304,13 @@
             <div class="cartoon-card p-6 md:p-8 mb-6 relative bg-white dark:bg-gray-800">
                 <!-- Top Badges Row -->
                 <div class="flex justify-between items-start mb-4">
-                    <!-- Progress Badge -->
-                    <div class="bg-brand-yellow border-2 border-black px-3 py-1 font-bold rounded-lg shadow-sm">
-                        Q<span id="q-number">1</span>
+                    <div class="flex items-center gap-2">
+                        <!-- Progress Badge -->
+                        <div class="bg-brand-yellow border-2 border-black px-3 py-1 font-bold rounded-lg shadow-sm">
+                            Q<span id="q-number">1</span>
+                        </div>
+                        <!-- OUT of syllabus Badge -->
+                        <span id="q-syl-badge" class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-green-600 text-white" title="核心必考（必修核心題）">核心必考</span>
                     </div>
                     <!-- Source Year Badge -->
                     <div class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full border border-gray-400">
@@ -393,6 +397,16 @@
                         <i class="fa-solid fa-share-nodes mr-2"></i>分享成績
                     </button>
                 </div>
+            </div>
+
+            <div class="cartoon-card p-5 bg-white dark:bg-gray-800 mb-8 w-full max-w-2xl mx-auto text-left">
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <h3 class="text-xl font-bold"><i class="fa-solid fa-list-check text-brand-red mr-2"></i>錯題回顧</h3>
+                    <select id="result-session-select" onchange="app.setReviewSession(this.value)"
+                        class="ml-auto text-sm font-bold px-3 py-2 rounded-lg border-2 border-black bg-white dark:bg-gray-700 dark:text-white outline-none">
+                    </select>
+                </div>
+                <div id="result-wrong-list" class="space-y-4"></div>
             </div>
 
             <div class="flex justify-center gap-4">
@@ -1109,6 +1123,11 @@
     ];    
         // 這是全域變數，會混合本地題目 + 雲端題目
         window.BAFS_DB = [...REAL_QUESTIONS];
+        // 考綱三級標籤（2025 DSE 必修指引校核：15 剔除＋128 選修＋271 核心＝414）
+        // 完全剔除 15 題：上市硬性門檻 9 題＋分類帳過帳記帳 5 題＋期末調整計算 1 題
+        const EXCLUDED_IDS = new Set([201228, 201303, 201305, 201310, 201311, 201410, 201504, 201627, 201717, 201822, 201915, 201923, 202028, 202326, 202416]);
+        // 選修單元（BM Strand）128 題
+        const BM_ELECTIVE_IDS = new Set([201201, 201204, 201206, 201207, 201208, 201215, 201219, 201221, 201222, 201223, 201229, 201230, 201304, 201308, 201313, 201316, 201321, 201323, 201326, 201327, 201329, 201330, 201406, 201409, 201413, 201417, 201419, 201421, 201422, 201423, 201424, 201425, 201503, 201506, 201509, 201511, 201513, 201519, 201521, 201524, 201529, 201602, 201607, 201610, 201614, 201616, 201617, 201620, 201622, 201624, 201701, 201704, 201708, 201712, 201714, 201718, 201720, 201721, 201724, 201727, 201729, 201801, 201805, 201809, 201811, 201816, 201819, 201821, 201823, 201827, 201903, 201910, 201913, 201921, 201922, 201927, 201930, 202002, 202006, 202007, 202008, 202009, 202010, 202017, 202021, 202023, 202026, 202029, 202101, 202102, 202104, 202108, 202115, 202117, 202121, 202122, 202124, 202125, 202128, 202201, 202202, 202207, 202215, 202218, 202219, 202220, 202222, 202223, 202302, 202304, 202308, 202313, 202318, 202321, 202322, 202325, 202327, 202330, 202402, 202406, 202411, 202413, 202417, 202419, 202421, 202422, 202424, 202428]);
         let CLOUD_QUESTIONS_CACHE = [];
 
         // === 2. GitHub 題庫連結 (2012-2019) ===
@@ -1176,6 +1195,11 @@
                 this.timeRemaining = 75 * 60;
                 this.selectedYear = null;
                 this.mistakes = JSON.parse(localStorage.getItem('bafs_mistakes')) || [];
+                this.mistakeSess = this.loadStore('bafs_mistake_sess', {});       // 錯題 qid → 邊次測驗 (sid)
+                this.sessionLabels = this.loadStore('bafs_session_labels', {});  // sid → {t, label}
+                this.activeSessionId = null;
+                this.sessions = this.loadStore('bafs_sessions', []);   // 每次測驗/練習嘅錯題快照（成績頁下拉式回顧）
+                this.reviewSessionIdx = 0;
                 this.stats = JSON.parse(localStorage.getItem('bafs_stats')) || { total: 0, correct: 0 };
                 this.qstats = this.loadStore('bafs_qstats', {});
                 this.migrateQstats();
@@ -1493,6 +1517,12 @@
                 this.mode = mode;
                 const preset = this.presetSet;
                 this.presetSet = false;
+                // 每次開考編一個 session id，之後加入嘅錯題會打上印記，錯題本用嚟分組
+                this.activeSessionId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+                this.sessionLabels[this.activeSessionId] = { t: Date.now(), label: `${this.selectedYear} • ${mode === 'exam' ? '模擬考' : '練習'}` };
+                const _sids = Object.keys(this.sessionLabels).sort((a, b) => (this.sessionLabels[a].t || 0) - (this.sessionLabels[b].t || 0));
+                while (_sids.length > 30) delete this.sessionLabels[_sids.shift()];
+                this.saveStore('bafs_session_labels', this.sessionLabels);
 
                 if (!isSearch && !preset && this.selectedYear !== "隨機模擬卷" && this.selectedYear !== "極速小測") {
                     this.currentQuestions = window.BAFS_DB.filter(q => q.year === this.selectedYear);
@@ -1580,6 +1610,15 @@
                 } else {
                     qSourceBox.classList.remove('hidden');
                     qSourceEl.innerText = qSourceText;
+                }
+                // 考綱徽章（三級：OUT／選修單元／核心必考，練習＋模擬考都會顯示）
+                const qSylBadge = document.getElementById('q-syl-badge');
+                if (qSylBadge) {
+                    const tag = this.syllabusTag(q);
+                    const conf = { OUT: ['OUT', 'bg-red-500', '完全剔除（官方指引明確剔除）'], BM: ['選修單元', 'bg-purple-500', '選修單元（BM Strand）'], CORE: ['核心必考', 'bg-green-600', '核心必考（必修核心題）'] }[tag] || ['核心必考', 'bg-green-600', '核心必考（必修核心題）'];
+                    qSylBadge.textContent = conf[0];
+                    qSylBadge.title = conf[2];
+                    qSylBadge.className = 'text-xs font-bold px-2 py-1 rounded border-2 border-black text-white ' + conf[1];
                 }
                 
                 document.getElementById('q-text').innerText = q.question;
@@ -1684,10 +1723,14 @@
             }
 
             addMistake(question) {
-                const qId = question.id || question.question; 
+                const qId = question.id || question.question;
                 if (!this.mistakes.find(m => (m.id || m.question) === qId)) {
                     this.mistakes.push(question);
                     localStorage.setItem('bafs_mistakes', JSON.stringify(this.mistakes));
+                }
+                if (this.activeSessionId) {
+                    this.mistakeSess[qId] = this.activeSessionId;
+                    this.saveStore('bafs_mistake_sess', this.mistakeSess);
                 }
             }
 
@@ -1730,6 +1773,21 @@
                 // 逐題統計（邊個課題／邊題做得差，用嚟做「成績分析」）
                 this.recordSubmission({ correctCount, answered: answeredCount, unanswered: unansweredCount });
 
+                // 記低今次測驗嘅錯題快照（只限今次，成績頁下拉式回顧用）
+                const wrongNow = this.currentQuestions
+                    .filter(q => { const a = this.userAnswers[q.id]; return a !== undefined && a !== q.answer; })
+                    .map(q => ({ q, userAns: this.userAnswers[q.id] }));
+                this.sessions.unshift({
+                    id: this.activeSessionId || ('s' + Date.now()),
+                    t: Date.now(),
+                    label: `${this.selectedYear} • ${this.mode === 'exam' ? '模擬考' : '練習'}`,
+                    total, correct: correctCount, wrong: wrongNow.length,
+                    items: wrongNow
+                });
+                if (this.sessions.length > 20) this.sessions.length = 20;
+                this.saveStore('bafs_sessions', this.sessions);
+                this.reviewSessionIdx = 0;
+
                 // 錯題重測：答啱嘅題自動移出錯題本
                 let released = 0;
                 if (String(this.selectedYear).indexOf('錯題重測') === 0) {
@@ -1740,6 +1798,8 @@
                     this.mistakes = this.mistakes.filter(m => solvedKeys.indexOf(m.id || m.question) === -1);
                     released = before - this.mistakes.length;
                     if (released > 0) {
+                        solvedKeys.forEach(k => { delete this.mistakeSess[k]; });
+                        this.saveStore('bafs_mistake_sess', this.mistakeSess);
                         localStorage.setItem('bafs_mistakes', JSON.stringify(this.mistakes));
                         this.updateStatsUI();
                     }
@@ -1751,6 +1811,7 @@
                 document.getElementById('result-correct').innerText = correctCount;
                 document.getElementById('result-wrong').innerText = wrongCount;
                 document.getElementById('result-unanswered').innerText = unansweredCount;
+                this.renderSessionReview();
 
 // 自動上傳到龍虎榜（使用 playerName）
 if (playerName && playerName !== "訪客") {
@@ -1792,9 +1853,56 @@ if (playerName && playerName !== "訪客") {
                 }
             }
 
+            setReviewSession(idx) {
+                this.reviewSessionIdx = Number(idx) || 0;
+                this.renderSessionReview();
+            }
+
+            // 成績頁錯題回顧：下拉式揀每次測驗/練習，只顯示該次嘅錯題
+            renderSessionReview() {
+                const sel = document.getElementById('result-session-select');
+                const host = document.getElementById('result-wrong-list');
+                if (!sel || !host) return;
+                const sessions = this.sessions || [];
+                if (this.reviewSessionIdx >= sessions.length) this.reviewSessionIdx = 0;
+                sel.innerHTML = sessions.map((s, i) => {
+                    const d = new Date(s.t);
+                    const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    return `<option value="${i}"${i === this.reviewSessionIdx ? ' selected' : ''}>${escapeHtml(when + ' ' + s.label)}（錯 ${s.wrong} 題）</option>`;
+                }).join('') || '<option value="0">暫無測驗紀錄</option>';
+
+                const s = sessions[this.reviewSessionIdx];
+                if (!s || !s.items || s.items.length === 0) {
+                    host.innerHTML = '<div class="text-center text-gray-400 font-bold py-6"><i class="fa-solid fa-circle-check text-3xl mb-2 block text-green-500"></i>該次測驗無錯題，做得好！</div>';
+                    return;
+                }
+                const L = 'ABCD';
+                host.innerHTML = s.items.map(({ q, userAns }) => {
+                    const linkHtml = this.linkedContextHtml(q);
+                    const linkCard = linkHtml
+                        ? `<div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">${linkHtml}</div>`
+                        : '';
+                    const opts = (q.options || []).map((o, k) => `
+                        <div class="px-3 py-2 rounded border-2 text-sm ${k === q.answer ? 'bg-green-100 border-green-500 text-black font-bold' : (k === userAns ? 'bg-red-100 border-red-500 text-black font-bold' : 'border-gray-200 dark:border-gray-600')}">
+                            <span class="font-bold mr-1">${L[k]}.</span>${escapeHtml(String(o))}
+                        </div>`).join('');
+                    return `
+                    <div class="border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 bg-white dark:bg-gray-800">
+                        <div class="flex flex-wrap gap-2 items-center mb-2">
+                            <span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-yellow text-black">${escapeHtml(this.questionLabel(q))}</span>
+                            ${this.syllabusBadge(q)}
+                            <span class="text-xs font-bold text-red-500 ml-auto">你答：${L[userAns] ?? '?'}・正確：${L[q.answer] ?? '?'}</span>
+                        </div>
+                        ${linkCard}
+                        <div class="font-medium mb-3" style="white-space: pre-line;">${escapeHtml(String(q.question || ''))}</div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">${opts}</div>
+                        <div class="text-sm text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 p-3 rounded" style="white-space: pre-line;">${escapeHtml(String(q.explanation || ''))}</div>
+                    </div>`;
+                }).join('');
+            }
+
             renderMistakes() {
-                const list = document.getElementById('mistakes-list');
-                const emptyMsg = document.getElementById('no-mistakes-msg');
+                const list = document.getElementById('mistakes-list');                const emptyMsg = document.getElementById('no-mistakes-msg');
                 list.innerHTML = '';
 
                 if (this.mistakes.length === 0) {
@@ -1803,7 +1911,39 @@ if (playerName && playerName !== "訪客") {
                 }
                 emptyMsg.classList.add('hidden');
 
+                // 按每次測驗/練習分組（有印記嘅按 session；之前嘅歸入「之前」）
+                const groups = new Map();
+                const groupOrder = [];
+                const pushGroup = (sid, label, t) => {
+                    if (!groups.has(sid)) { groups.set(sid, { label, t, items: [] }); groupOrder.push(sid); }
+                    return groups.get(sid);
+                };
+                const fmtDate = (t) => {
+                    const d = new Date(t);
+                    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                };
                 this.mistakes.forEach(q => {
+                    const key = q.id || q.question;
+                    const sid = (this.mistakeSess || {})[key];
+                    let g;
+                    if (sid) {
+                        const sess = (this.sessions || []).find(x => String(x.id) === String(sid));
+                        const lab = (this.sessionLabels || {})[sid];
+                        const t = (sess && sess.t) || (lab && lab.t) || 0;
+                        const base = (sess && sess.label) || (lab && lab.label) || '該次測驗';
+                        g = pushGroup('s:' + sid, t ? `${fmtDate(t)} ${base}` : base, t);
+                    } else {
+                        g = pushGroup('old', '之前加入嘅錯題', -1);
+                    }
+                    g.items.push(q);
+                });
+                groupOrder.sort((a, b) => {
+                    if (a === 'old') return 1;
+                    if (b === 'old') return -1;
+                    return (groups.get(b).t || 0) - (groups.get(a).t || 0);
+                });
+
+                const addCard = (q) => {
                     const div = document.createElement('div');
                     div.className = "cartoon-card p-6 bg-white dark:bg-gray-800 relative";
                     const linkHtml = this.linkedContextHtml(q);
@@ -1811,7 +1951,7 @@ if (playerName && playerName !== "訪客") {
                         ? `<div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">${linkHtml}</div>`
                         : '';
                     div.innerHTML = `
-                        <div class="absolute top-4 right-4 text-xs font-bold text-gray-400">${q.year}</div>
+                        <div class="absolute top-4 right-4 text-xs font-bold text-gray-400">${this.syllabusBadge(q).replace('class="text-xs', 'class="inline-block mr-1 text-xs').replace('px-2 py-1', 'px-2 py-0.5')}${q.year}</div>
                         ${linkCard}
                         <h4 class="font-bold text-lg mb-3 pr-8" style="white-space: pre-line;">${q.question}</h4>
                         <div class="space-y-2 mb-4">
@@ -1827,11 +1967,22 @@ if (playerName && playerName !== "訪客") {
                         <button class="mt-4 text-xs text-red-500 underline font-bold" onclick="app.removeMistake('${q.id}')">移除此題</button>
                     `;
                     list.appendChild(div);
+                };
+
+                groupOrder.forEach(sid => {
+                    const g = groups.get(sid);
+                    const header = document.createElement('h3');
+                    header.className = "text-lg font-bold flex items-center gap-2 mt-2";
+                    header.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-gray-400"></i><span>${escapeHtml(g.label)}</span><span class="text-xs font-bold px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300">${g.items.length} 題</span>`;
+                    list.appendChild(header);
+                    g.items.forEach(addCard);
                 });
             }
 
             removeMistake(id) {
-                this.mistakes = this.mistakes.filter(m => m.id != id); 
+                this.mistakes = this.mistakes.filter(m => m.id != id);
+                delete this.mistakeSess[id];
+                this.saveStore('bafs_mistake_sess', this.mistakeSess);
                 localStorage.setItem('bafs_mistakes', JSON.stringify(this.mistakes));
                 this.renderMistakes();
                 this.updateStatsUI();
@@ -1840,6 +1991,8 @@ if (playerName && playerName !== "訪客") {
             clearMistakes() {
                 if(confirm("確定清除所有錯題？")) {
                     this.mistakes = [];
+                    this.mistakeSess = {};
+                    this.saveStore('bafs_mistake_sess', this.mistakeSess);
                     localStorage.setItem('bafs_mistakes', JSON.stringify([]));
                     this.renderMistakes();
                     this.updateStatsUI();
@@ -1907,6 +2060,24 @@ if (playerName && playerName !== "訪客") {
 
             findQuestion(qid) {
                 return (window.BAFS_DB || []).find(x => String(x.id) === String(qid));
+            }
+
+            // 考綱三級判定：OUT（完全剔除）／BM（選修單元）／CORE（核心必考），以題目 id 查表
+            syllabusTag(q) {
+                const id = Number(q && q.id);
+                if (typeof EXCLUDED_IDS !== 'undefined' && EXCLUDED_IDS.has(id)) return 'OUT';
+                if (typeof BM_ELECTIVE_IDS !== 'undefined' && BM_ELECTIVE_IDS.has(id)) return 'BM';
+                return 'CORE';
+            }
+            isOutOfSyllabus(q) {
+                return this.syllabusTag(q) === 'OUT';
+            }
+            // 考綱徽章 HTML（三級共用）
+            syllabusBadge(q) {
+                const tag = this.syllabusTag(q);
+                if (tag === 'OUT') return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-red-500 text-white" title="完全剔除（官方指引明確剔除）">OUT</span>';
+                if (tag === 'BM') return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-purple-500 text-white" title="選修單元（BM Strand）">選修單元</span>';
+                return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-green-600 text-white" title="核心必考（必修核心題）">核心必考</span>';
             }
 
             // 承上題判定：題目開頭寫「承上題」，資料喺 id-1 嗰題
@@ -2345,6 +2516,7 @@ if (playerName && playerName !== "訪客") {
                         <div class="flex flex-wrap justify-between items-start gap-3 mb-3">
                             <div class="flex flex-wrap gap-2 items-center">
                                 <span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-yellow text-black">${escapeHtml(String(q.year))} Q${escapeHtml(String(qno))}</span>
+                                ${this.syllabusBadge(q)}
                                 <span class="text-xs font-bold px-2 py-1 rounded bg-blue-100 dark:bg-blue-900 text-brand-blue">${escapeHtml(String(q.topic || '未分類'))}</span>
                                 ${rate ? `<span class="text-xs font-bold px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-500">答對率 ${escapeHtml(rate)}%</span>` : ''}
                             </div>

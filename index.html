@@ -123,6 +123,18 @@
         }
 
         /* 答題卡圓圈 */
+        /* 調色盤 fallback：呢幾個 class 只喺 JS 字串出現，避免 Tailwind CDN 掃描時序造成一瞬白字 */
+        .bg-ink { background-color: #14161A; }
+        .bg-paper { background-color: #F7F8F5; }
+        .bg-brand-red { background-color: #C81E1E; }
+        .bg-brand-green { background-color: #1E7A46; }
+        .bg-brand-yellow { background-color: #B4892B; }
+        .bg-brand-blue { background-color: #1F4ED8; }
+        .text-brand-red { color: #C81E1E; }
+        .text-brand-green { color: #1E7A46; }
+        .text-brand-yellow { color: #B4892B; }
+        .text-brand-blue { color: #1F4ED8; }
+
         /* hero 次要工具掣：ghost 風格，同高、有 icon */
         .ghost-tool {
             display: flex;
@@ -1851,10 +1863,16 @@
                 const qSylBadge = document.getElementById('q-syl-badge');
                 if (qSylBadge) {
                     const tag = this.syllabusTag(q);
-                    const conf = { OUT: ['OUT', 'bg-brand-red', '完全剔除（官方指引明確剔除）'], BM: ['選修單元', 'bg-white text-black', '選修單元（BM Strand）'], CORE: ['核心必考', 'bg-brand-green', '核心必考（必修核心題）'] }[tag] || ['核心必考', 'bg-brand-green', '核心必考（必修核心題）'];
+                    // [文字, 底色, 字色, tooltip]
+                    const SYL_CONF = {
+                        OUT:  ['OUT',      'bg-brand-red',   'text-white', '完全剔除（官方指引明確剔除）'],
+                        BM:   ['選修單元',  'bg-white',       'text-black', '選修單元（BM Strand）'],
+                        CORE: ['核心必考',  'bg-brand-green', 'text-white', '核心必考（必修核心題）']
+                    };
+                    const conf = SYL_CONF[tag] || SYL_CONF.CORE;
                     qSylBadge.textContent = conf[0];
-                    qSylBadge.title = conf[2];
-                    qSylBadge.className = 'text-xs font-bold px-2 py-1 rounded border-2 border-black ' + (conf[1] === 'bg-white' ? 'text-black ' : 'text-white ') + conf[1];
+                    qSylBadge.title = conf[3];
+                    qSylBadge.className = `text-xs font-bold px-2 py-1 rounded border-2 border-black ${conf[1]} ${conf[2]}`;
                 }
                 
                 document.getElementById('q-text').innerText = q.question;
@@ -2384,7 +2402,7 @@ if (playerName && playerName !== "訪客") {
                     ['ALL', '全部', 'bg-brand-blue text-white'],
                     ['CORE', '核心必考', 'bg-brand-green text-white'],
                     ['NO_OUT', '排除OUT', 'bg-brand-yellow text-black'],
-                    ['BM', '選修單元', 'bg-brand-dark text-white']
+                    ['BM', '選修單元', 'bg-ink text-white']
                 ];
                 host.innerHTML = defs.map(([v, label, on]) => `
                     <button onclick="app.setSylFilter('${v}')"

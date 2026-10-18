@@ -6,8 +6,8 @@
     <title>BAFS 狀元工廠 (MC Master)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Comic Neue for Cartoon feel -->
-    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+    <!-- 字體：標題 Noto Serif TC（考卷／課本感）＋內文 Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Firebase SDKs -->
@@ -21,15 +21,18 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        'cartoon': ['"Comic Neue"', 'cursive'],
+                        'display': ['"Noto Serif TC"', 'serif'],
                         'body': ['"Noto Sans TC"', 'sans-serif'],
                     },
                     colors: {
-                        'brand-yellow': '#FFD93D',
-                        'brand-blue': '#4D96FF',
-                        'brand-green': '#6BCB77',
-                        'brand-red': '#FF6B6B',
-                        'brand-dark': '#2D2D2D',
+                        // P1 考卷／評卷語彙：紙白・墨黑・原子筆藍・評卷紅・印章金・核對綠
+                        'paper': '#F7F8F5',
+                        'ink': '#14161A',
+                        'brand-yellow': '#B4892B',
+                        'brand-blue': '#1F4ED8',
+                        'brand-green': '#1E7A46',
+                        'brand-red': '#C81E1E',
+                        'brand-dark': '#14161A',
                     },
                     boxShadow: {
                         'cartoon': '4px 4px 0px 0px #000000',
@@ -48,8 +51,10 @@
             overflow-x: hidden;
         }
         
-        .cartoon-font {
-            font-family: 'Comic Neue', cursive;
+        .display-font {
+            font-family: 'Noto Serif TC', serif;
+            font-weight: 900;
+            letter-spacing: 0.01em;
         }
 
         /* Custom Scrollbar */
@@ -61,7 +66,7 @@
             border-left: 2px solid black;
         }
         ::-webkit-scrollbar-thumb {
-            background: #4D96FF;
+            background: #1F4ED8;
             border: 2px solid black;
             border-radius: 10px;
         }
@@ -92,7 +97,6 @@
         .cartoon-btn {
             border: 2px solid black;
             font-weight: bold;
-            text-transform: uppercase;
             box-shadow: 3px 3px 0px 0px #000000;
             transition: all 0.1s;
         }
@@ -108,7 +112,7 @@
         
         /* Checkbox styling */
         .option-input:checked + div {
-            background-color: #4D96FF;
+            background-color: #1F4ED8;
             color: white;
             border-color: black;
             box-shadow: inset 2px 2px 0px 0px rgba(0,0,0,0.2);
@@ -116,6 +120,36 @@
 
         .hidden-page {
             display: none;
+        }
+
+        /* 答題卡圓圈 */
+        .sheet-dot {
+            width: 1.75rem;
+            height: 1.75rem;
+            line-height: 1;
+        }
+        .sheet-dot.current {
+            outline: 3px solid #B4892B;
+            outline-offset: 2px;
+        }
+
+        /* P0 可及性：鍵盤焦點＋減少動態 */
+        :focus-visible {
+            outline: 3px solid #1F4ED8;
+            outline-offset: 2px;
+        }
+        .dark :focus-visible { outline-color: #FFD93D; }
+        .option-input:focus-visible + div {
+            outline: 3px solid #1F4ED8;
+            outline-offset: 2px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .001ms !important;
+            }
+            .confetti { display: none !important; }
         }
 
         @page { size: A4; margin: 12mm; }
@@ -175,13 +209,13 @@
         }
     </script>
 </head>
-<body class="bg-yellow-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
+<body class="bg-paper dark:bg-ink text-gray-900 dark:text-gray-100 transition-colors duration-300 min-h-screen flex flex-col">
 
     <!-- Navbar -->
     <nav class="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b-4 border-black dark:border-white px-4 py-3 flex justify-between items-center">
         <div class="flex items-center gap-2 cursor-pointer" onclick="app.router('home')">
             <i class="fa-solid fa-graduation-cap text-3xl text-brand-blue dark:text-brand-yellow drop-shadow-[2px_2px_0_rgba(0,0,0,1)]"></i>
-            <h1 class="text-2xl font-bold cartoon-font tracking-wider">BAFS <span class="text-brand-blue dark:text-brand-yellow">MC</span> 工廠</h1>
+            <h1 class="text-2xl font-bold display-font tracking-wider">BAFS <span class="text-brand-blue dark:text-brand-yellow">MC</span> 工廠</h1>
         </div>
         
         <div class="flex items-center gap-3">
@@ -203,7 +237,7 @@
 </div>    </nav>
 
     <!-- Mobile Menu -->
-    <div id="mobile-menu" class="hidden md:hidden fixed inset-0 z-40 bg-black/90 flex flex-col items-center justify-center space-y-6 text-white text-2xl font-bold cartoon-font">
+    <div id="mobile-menu" class="hidden md:hidden fixed inset-0 z-40 bg-black/90 flex flex-col items-center justify-center space-y-6 text-white text-2xl font-bold display-font">
         <button class="absolute top-5 right-5 text-4xl" onclick="document.getElementById('mobile-menu').classList.add('hidden')">&times;</button>
         <a href="#" onclick="app.router('home'); document.getElementById('mobile-menu').classList.add('hidden')">主頁</a>
         <a href="#" onclick="app.router('mistakes'); document.getElementById('mobile-menu').classList.add('hidden')">我的錯題本</a>
@@ -217,30 +251,35 @@
         <!-- === HOME VIEW === -->
         <div id="home-view" class="space-y-8 animate-fade-in">
             <!-- Hero Section -->
-            <div class="cartoon-card bg-brand-blue text-white p-6 md:p-10 text-center relative overflow-hidden">
-                <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/20 rounded-full"></div>
-                <div class="absolute top-20 -left-10 w-20 h-20 bg-brand-yellow/30 rounded-full"></div>
-                <h2 class="text-3xl md:text-5xl font-bold mb-4 cartoon-font drop-shadow-[3px_3px_0_rgba(0,0,0,1)]">BAFS 5**</h2>
-                <p class="text-lg md:text-xl font-medium mb-6">歷屆試題 • 即時詳解 • 錯題重溫 • 龍虎榜</p>
-                <div class="flex flex-wrap justify-center gap-4">
-                    <button onclick="app.startRandomMock()" class="cartoon-btn bg-brand-yellow text-black px-6 py-3 rounded-xl text-lg hover:bg-yellow-300">
-                        <i class="fa-solid fa-shuffle mr-2"></i>隨機模擬卷 (24題)
-                    </button>
-                    <button onclick="app.startMiniQuiz()" class="cartoon-btn bg-purple-500 text-white px-6 py-3 rounded-xl text-lg hover:bg-purple-600 shadow-cartoon">
-                        <i class="fa-solid fa-stopwatch mr-2"></i>極速小測 (20題)
-                    </button>
-                    <button onclick="app.router('mistakes')" class="cartoon-btn bg-brand-red text-white px-6 py-3 rounded-xl text-lg hover:bg-red-500">
-                        <i class="fa-solid fa-book-skull mr-2"></i>重溫錯題
-                    </button>
-					<button onclick="app.openCustomQuizModal()" class="cartoon-btn bg-brand-green text-white px-6 py-3 rounded-xl text-lg hover:bg-green-600 shadow-cartoon">
-    <i class="fa-solid fa-sliders mr-2"></i>自訂測驗
-</button>
-                    <button onclick="app.router('bank')" class="cartoon-btn bg-white text-black px-6 py-3 rounded-xl text-lg hover:bg-gray-100 shadow-cartoon">
-                        <i class="fa-solid fa-book-open mr-2"></i>題庫瀏覽
-                    </button>
-                    <button onclick="app.openTopicDrillModal()" class="cartoon-btn bg-white text-black px-6 py-3 rounded-xl text-lg hover:bg-gray-100 shadow-cartoon">
-                        <i class="fa-solid fa-layer-group mr-2"></i>課題操練
-                    </button>
+            <div class="cartoon-card bg-brand-blue text-white p-6 md:p-8 relative overflow-hidden">
+                <div class="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full"></div>
+                <div class="md:flex md:items-start md:gap-8 relative">
+                    <div class="md:flex-1">
+                        <!-- 評卷印章 -->
+                        <div class="inline-flex items-baseline gap-2 bg-brand-yellow text-black border-4 border-black px-4 py-2 rotate-[-2deg] shadow-cartoon">
+                            <span class="display-font text-4xl md:text-5xl leading-none">5**</span>
+                            <span class="font-bold text-sm">目標</span>
+                        </div>
+                        <h1 class="display-font text-2xl md:text-3xl mt-5">BAFS 卷一 多項選擇題</h1>
+                        <p class="mt-2 text-white/90">歷屆試題・即時詳解・錯題重溫</p>
+                        <div class="flex flex-wrap gap-3 mt-6">
+                            <button onclick="app.startRandomMock()" class="cartoon-btn bg-brand-yellow text-black px-6 py-3 rounded-xl text-lg">
+                                <i class="fa-solid fa-shuffle mr-2"></i>隨機模擬卷 24 題
+                            </button>
+                            <button onclick="app.openTopicDrillModal()" class="cartoon-btn bg-white text-black px-6 py-3 rounded-xl text-lg">
+                                <i class="fa-solid fa-layer-group mr-2"></i>課題操練
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-6 md:mt-1 md:w-52 shrink-0">
+                        <div class="text-xs font-bold tracking-wide text-white/70">其他練習</div>
+                        <div class="mt-2 flex flex-wrap md:flex-col gap-x-4 gap-y-1 text-sm">
+                            <button onclick="app.startMiniQuiz()" class="text-left underline decoration-white/40 hover:decoration-white">極速小測 20 題</button>
+                            <button onclick="app.openCustomQuizModal()" class="text-left underline decoration-white/40 hover:decoration-white">自訂測驗</button>
+                            <button onclick="app.router('mistakes')" class="text-left underline decoration-white/40 hover:decoration-white">重溫錯題</button>
+                            <button onclick="app.router('bank')" class="text-left underline decoration-white/40 hover:decoration-white">題庫瀏覽</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -259,7 +298,7 @@
             </div>
 
             <!-- 未完成測驗續做橫幅 -->
-            <div id="resume-banner" class="hidden cartoon-card p-4 bg-amber-50 dark:bg-amber-900/20 border-2 border-brand-yellow flex flex-wrap items-center justify-center gap-3">
+            <div id="resume-banner" class="hidden cartoon-card p-4 bg-paper dark:bg-gray-700 border-2 border-brand-yellow flex flex-wrap items-center justify-center gap-3">
                 <span class="font-bold text-gray-700 dark:text-gray-200"><i class="fa-solid fa-history mr-2 text-brand-yellow"></i><span id="resume-text"></span></span>
                 <button onclick="app.resumeQuiz()" class="cartoon-btn bg-brand-blue text-white px-5 py-2 rounded-xl font-bold">繼續做</button>
                 <button onclick="app.discardProgress()" class="text-sm text-gray-500 underline font-bold">捨棄</button>
@@ -300,7 +339,7 @@
 
                 <div class="grid grid-cols-3 md:grid-cols-5 gap-4" id="year-grid">
                     <!-- JS will populate this -->
-                    <div class="col-span-3 text-center py-8 text-gray-400">正在載入題庫...</div>
+                    <div class="col-span-3 text-center py-8 text-gray-600 dark:text-gray-400">正在載入題庫...</div>
                 </div>
 
 </div>
@@ -319,13 +358,22 @@
     30:00
 </div>	
                 <div class="flex items-center gap-4">
-                    <button onclick="app.endQuizEarly()" class="text-sm underline text-red-500 font-bold">結束練習</button>
+                    <button onclick="app.endQuizEarly()" class="text-sm underline text-brand-red font-bold">結束練習</button>
                 </div>
             </div>
 
-            <!-- Progress Bar -->
-            <div class="w-full bg-gray-200 h-4 border-2 border-black rounded-full mb-6 relative overflow-hidden">
+            <!-- Progress Bar（幼，只作整體進度） -->
+            <div class="w-full bg-gray-200 h-2 border-2 border-black rounded-full mb-3 relative overflow-hidden">
                 <div id="quiz-progress" class="bg-brand-blue h-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+
+            <!-- 答題卡：逐題狀態＋可直接跳題 -->
+            <div class="cartoon-card p-3 mb-6 bg-white dark:bg-gray-800">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs font-bold text-gray-600 dark:text-gray-300">答題卡</span>
+                    <span class="text-xs text-gray-600 dark:text-gray-400" id="answer-sheet-legend">未答／已答／答對／答錯</span>
+                </div>
+                <div id="answer-sheet" class="flex flex-wrap gap-1.5" role="list" aria-label="答題卡"></div>
             </div>
 
             <!-- Question Card -->
@@ -338,7 +386,7 @@
                             Q<span id="q-number">1</span>
                         </div>
                         <!-- OUT of syllabus Badge -->
-                        <span id="q-syl-badge" class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-green-600 text-white" title="核心必考（必修核心題）">核心必考</span>
+                        <span id="q-syl-badge" class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-green text-white" title="核心必考（必修核心題）">核心必考</span>
                     </div>
                     <!-- Source Year Badge -->
                     <div class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold px-3 py-1 rounded-full border border-gray-400">
@@ -346,7 +394,7 @@
                     </div>
                 </div>
                 
-                <div id="linked-context" class="hidden mt-2 mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">
+                <div id="linked-context" class="hidden mt-2 mb-4 p-4 bg-paper dark:bg-gray-700 border-l-4 border-brand-blue rounded-r-lg">
                     <!-- 承上題資料卡：由 linkedContextHtml() 注入 -->
                 </div>
 
@@ -376,7 +424,7 @@
                     下一題 <i class="fa-solid fa-arrow-right"></i>
                 </button>
                 
-                <button id="btn-submit" onclick="app.submitQuiz()" class="cartoon-btn bg-brand-green text-white px-8 py-3 rounded-xl shadow-cartoon hover:bg-green-600 hidden">
+                <button id="btn-submit" onclick="app.submitQuiz()" class="cartoon-btn bg-brand-green text-white px-8 py-3 rounded-xl shadow-cartoon hover:brightness-110 hidden">
                     提交試卷 <i class="fa-solid fa-check"></i>
                 </button>
             </div>
@@ -385,7 +433,7 @@
 
         <!-- === RESULT VIEW === -->
         <div id="result-view" class="hidden-page text-center pt-10">
-            <h2 class="text-4xl font-bold mb-2 cartoon-font">成績單</h2>
+            <h2 class="text-4xl font-bold mb-2 display-font">成績單</h2>
             <p class="text-gray-500 mb-8" id="result-subtitle">2023 DSE • Practice Mode</p>
 
             <div class="cartoon-card p-8 bg-white dark:bg-gray-800 mb-8 inline-block w-full max-w-md">
@@ -399,17 +447,17 @@
                 </div>
 
                 <div class="grid grid-cols-3 gap-4 mb-6">
-                    <div class="bg-green-100 dark:bg-green-900/30 p-3 rounded-lg border-2 border-green-200 dark:border-green-800">
+                    <div class="bg-brand-green/20 dark:bg-green-900/30 p-3 rounded-lg border-2 border-green-200 dark:border-green-800">
                         <div class="text-2xl font-bold text-green-600 dark:text-green-400" id="result-correct">0</div>
                         <div class="text-xs uppercase font-bold text-green-800 dark:text-green-200">正確</div>
                     </div>
-                    <div class="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg border-2 border-red-200 dark:border-red-800">
+                    <div class="bg-brand-red/20 dark:bg-red-900/30 p-3 rounded-lg border-2 border-red-200 dark:border-red-800">
                         <div class="text-2xl font-bold text-red-600 dark:text-red-400" id="result-wrong">0</div>
                         <div class="text-xs uppercase font-bold text-red-800 dark:text-red-200">錯誤</div>
                     </div>
                     <div class="bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600">
                         <div class="text-2xl font-bold text-gray-600 dark:text-gray-300" id="result-unanswered">0</div>
-                        <div class="text-xs uppercase font-bold text-gray-500 dark:text-gray-400">未作答</div>
+                        <div class="text-xs uppercase font-bold text-gray-500 dark:text-gray-600 dark:text-gray-400">未作答</div>
                     </div>
                 </div>
 
@@ -449,10 +497,10 @@
             <h2 class="text-3xl font-bold mb-6 flex items-center gap-3">
                 <i class="fa-solid fa-book-skull text-brand-red"></i> 我的錯題本
                 <div class="ml-auto flex gap-2">
-                    <button onclick="app.startMistakeRetest()" id="btn-retest-mistakes" class="text-sm bg-green-100 text-green-700 px-3 py-1 rounded-full border border-green-300 hover:bg-green-200">
+                    <button onclick="app.startMistakeRetest()" id="btn-retest-mistakes" class="text-sm bg-brand-green/20 text-green-700 px-3 py-1 rounded-full border border-green-300 hover:bg-green-200">
                         <i class="fa-solid fa-rotate-right mr-1"></i>重考錯題
                     </button>
-                    <button onclick="app.clearMistakes()" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded-full border border-red-300 hover:bg-red-200">
+                    <button onclick="app.clearMistakes()" class="text-sm bg-brand-red/20 text-red-600 px-3 py-1 rounded-full border border-red-300 hover:bg-red-200">
                         清除所有
                     </button>
                 </div>
@@ -470,7 +518,7 @@
         <!-- === LEADERBOARD VIEW === -->
         <div id="leaderboard-view" class="hidden-page">
             <div class="text-center mb-8 relative">
-                <h2 class="text-3xl font-bold cartoon-font bg-brand-yellow inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">BAFS 龍虎榜</h2>
+                <h2 class="text-3xl font-bold display-font bg-brand-yellow inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">BAFS 龍虎榜</h2>
                 <p class="mt-4 text-gray-500">Top 50 Legends</p>
                 <button onclick="app.loadLeaderboard()" class="absolute right-0 top-2 text-sm bg-white border border-gray-300 px-3 py-1 rounded shadow hover:bg-gray-50">
                     <i class="fa-solid fa-rotate"></i> 刷新
@@ -498,8 +546,8 @@
         <!-- === ANALYSIS VIEW === -->
         <div id="analysis-view" class="hidden-page">
             <div class="text-center mb-8 relative">
-                <h2 class="text-3xl font-bold cartoon-font bg-brand-blue text-white inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">成績分析</h2>
-                <p class="mt-4 text-gray-500 dark:text-gray-400">邊個課題最弱・邊題成日錯</p>
+                <h2 class="text-3xl font-bold display-font bg-brand-blue text-white inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">成績分析</h2>
+                <p class="mt-4 text-gray-500 dark:text-gray-600 dark:text-gray-400">邊個課題最弱・邊題成日錯</p>
                 <button onclick="app.clearAnalysis()" class="absolute right-0 top-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 px-3 py-1 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600">
                     <i class="fa-solid fa-trash-can"></i> 清除數據
                 </button>
@@ -508,7 +556,7 @@
             <div id="analysis-empty" class="text-center py-20 hidden">
                 <i class="fa-solid fa-chart-pie text-6xl text-gray-300 mb-4"></i>
                 <p class="text-xl font-bold text-gray-500">仲未有作答紀錄</p>
-                <p class="text-sm text-gray-400 mt-2">完成至少一次測驗，就會開始統計你嘅強弱項</p>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">完成至少一次測驗，就會開始統計你嘅強弱項</p>
                 <button onclick="app.router('home')" class="mt-4 cartoon-btn bg-brand-blue text-white px-6 py-2 rounded-lg">去練習</button>
             </div>
 
@@ -534,7 +582,7 @@
                 </div>
 
                 <!-- 一鍵專練最弱課題 -->
-                <button onclick="app.drillWeakestTopic()" id="ana-drill-btn" class="w-full cartoon-btn bg-brand-green text-white py-3 rounded-xl font-bold shadow-cartoon hover:bg-green-600">
+                <button onclick="app.drillWeakestTopic()" id="ana-drill-btn" class="w-full cartoon-btn bg-brand-green text-white py-3 rounded-xl font-bold shadow-cartoon hover:brightness-110">
                     <i class="fa-solid fa-bullseye mr-2"></i><span id="ana-drill-label">專練最弱課題</span>
                 </button>
 
@@ -553,7 +601,7 @@
                         <i class="fa-solid fa-layer-group text-brand-blue"></i> 各課題正確率（由弱到強）
                     </h3>
                     <div id="ana-topics" class="space-y-3"></div>
-                    <p class="text-xs text-gray-400 mt-4">作答少於 3 題嘅課題只作參考</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mt-4">作答少於 3 題嘅課題只作參考</p>
                 </div>
 
                 <!-- 用時分析 -->
@@ -561,7 +609,7 @@
                     <h3 class="text-xl font-bold mb-1 flex items-center gap-2">
                         <i class="fa-solid fa-stopwatch text-brand-yellow"></i> 用時分析（平均每題秒數・由慢到快）
                     </h3>
-                    <p class="text-xs text-gray-400 mb-4">整體平均 <span id="ana-avgtime" class="font-bold text-gray-600 dark:text-gray-300">—</span>・作答少於 3 次嘅課題只作參考</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-4">整體平均 <span id="ana-avgtime" class="font-bold text-gray-600 dark:text-gray-300">—</span>・作答少於 3 次嘅課題只作參考</p>
                     <div id="ana-time" class="space-y-3"></div>
                 </div>
 
@@ -602,8 +650,8 @@
         <!-- === BANK VIEW（題庫顯示 · by year）=== -->
         <div id="bank-view" class="hidden-page">
             <div class="text-center mb-6 relative">
-                <h2 class="text-3xl font-bold cartoon-font bg-brand-blue text-white inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">題庫</h2>
-                <p class="mt-4 text-gray-500 dark:text-gray-400">按年份瀏覽全部題目・答案・詳解</p>
+                <h2 class="text-3xl font-bold display-font bg-brand-blue text-white inline-block px-6 py-2 border-4 border-black rotate-[-2deg] shadow-cartoon">題庫</h2>
+                <p class="mt-4 text-gray-500 dark:text-gray-600 dark:text-gray-400">按年份瀏覽全部題目・答案・詳解</p>
                 <button onclick="app.router('home')" class="absolute right-0 top-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 px-3 py-1 rounded shadow hover:bg-gray-50 dark:hover:bg-gray-600">
                     <i class="fa-solid fa-arrow-left"></i> 返回
                 </button>
@@ -645,13 +693,13 @@
     </main>
 
     <!-- Footer -->
-    <footer class="text-center py-8 text-gray-400 text-xs mt-auto">
+    <footer class="text-center py-8 text-gray-600 dark:text-gray-400 text-xs mt-auto">
         <p>BAFS MC Master © 2024</p>
     </footer>
 
     <!-- Modal for Mode Selection -->
     <div id="mode-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
+        <div class="bg-white dark:bg-gray-800 w-full max-w-md rounded-xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
             <h3 class="text-2xl font-bold mb-2">選擇模式</h3>
             <p class="text-gray-500 mb-6" id="modal-year-title">2023 Year</p>
             
@@ -682,7 +730,7 @@
     </div>
 <!-- Custom Quiz Modal -->
 <div id="custom-quiz-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
+    <div class="bg-white dark:bg-gray-800 w-full max-w-md rounded-xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
         <h3 class="text-2xl font-bold mb-4">自訂測驗設定</h3>
 
         <!-- 題數滑桿 -->
@@ -722,9 +770,9 @@
 </div>
 
 <div id="topic-drill-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 w-full max-w-lg rounded-2xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
+    <div class="bg-white dark:bg-gray-800 w-full max-w-lg rounded-xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
         <h3 class="text-2xl font-bold mb-1">課題操練</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">揀一個課題即刻開操（做錯過嘅題排先，最多 15 題）</p>
+        <p class="text-sm text-gray-500 dark:text-gray-600 dark:text-gray-400 mb-4">揀一個課題即刻開操（做錯過嘅題排先，最多 15 題）</p>
         <input id="topic-drill-search" type="text" placeholder="搜尋課題…" oninput="app.renderTopicDrillList(this.value)"
             class="w-full px-4 py-3 mb-4 bg-white dark:bg-gray-700 border-2 border-black dark:border-white rounded-xl outline-none focus:ring-2 focus:ring-brand-blue">
         <div id="topic-drill-list" class="max-h-80 overflow-y-auto pr-1"></div>
@@ -1587,7 +1635,7 @@
                         class="w-full flex items-center gap-2 text-left px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-black dark:hover:border-white transition mb-2">
                         <span class="flex-1 font-bold text-sm break-words">${escapeHtml(t)}</span>
                         <span class="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-brand-blue shrink-0">${counts[t]} 題</span>
-                    </button>`).join('') || '<p class="text-center text-gray-400 py-6">搵唔到相關課題</p>';
+                    </button>`).join('') || '<p class="text-center text-gray-600 dark:text-gray-400 py-6">搵唔到相關課題</p>';
             }
 
             drillWeakestTopic() {
@@ -1697,6 +1745,48 @@
                 }, 1000);
             }
 
+            // 答題卡：逐題狀態（未答／已答／答對／答錯），可點跳題
+            renderAnswerSheet() {
+                const host = document.getElementById('answer-sheet');
+                if (!host) return;
+                const total = (this.currentQuestions || []).length;
+                const legend = document.getElementById('answer-sheet-legend');
+                if (legend) {
+                    legend.textContent = this.mode === 'practice' ? '未答／答對／答錯' : '未答／已答';
+                }
+                let html = '';
+                for (let i = 0; i < total; i++) {
+                    const q = this.currentQuestions[i];
+                    const qId = q.id || i;
+                    const ans = this.userAnswers[qId];
+                    let state = 'unanswered';
+                    if (ans !== undefined) {
+                        if (this.mode === 'practice') state = (ans === q.answer) ? 'correct' : 'wrong';
+                        else state = 'answered';
+                    }
+                    const cls = {
+                        unanswered: 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600',
+                        answered: 'bg-brand-blue text-white',
+                        correct: 'bg-brand-green text-white',
+                        wrong: 'bg-brand-red text-white'
+                    }[state];
+                    const cur = i === this.currentIndex ? ' current' : '';
+                    html += `<button type="button" role="listitem" onclick="app.jumpToQuestion(${i})" ` +
+                        `aria-label="第 ${i + 1} 題（${state === 'unanswered' ? '未答' : state === 'answered' ? '已答' : state === 'correct' ? '答對' : '答錯'}）"` +
+                        ` aria-current="${i === this.currentIndex ? 'true' : 'false'}" ` +
+                        `class="sheet-dot rounded-full border-2 border-black font-bold text-xs transition ${cls}${cur}">${i + 1}</button>`;
+                }
+                host.innerHTML = html;
+            }
+
+            jumpToQuestion(i) {
+                if (!(i >= 0) || i >= (this.currentQuestions || []).length) return;
+                if (i === this.currentIndex) return;
+                this.commitQTime();
+                this.currentIndex = i;
+                this.renderQuestion();
+            }
+
             renderQuestion() {
                 const q = this.currentQuestions[this.currentIndex];
                 const total = this.currentQuestions.length;
@@ -1719,10 +1809,10 @@
                 const qSylBadge = document.getElementById('q-syl-badge');
                 if (qSylBadge) {
                     const tag = this.syllabusTag(q);
-                    const conf = { OUT: ['OUT', 'bg-red-500', '完全剔除（官方指引明確剔除）'], BM: ['選修單元', 'bg-purple-500', '選修單元（BM Strand）'], CORE: ['核心必考', 'bg-green-600', '核心必考（必修核心題）'] }[tag] || ['核心必考', 'bg-green-600', '核心必考（必修核心題）'];
+                    const conf = { OUT: ['OUT', 'bg-brand-red', '完全剔除（官方指引明確剔除）'], BM: ['選修單元', 'bg-white text-black', '選修單元（BM Strand）'], CORE: ['核心必考', 'bg-brand-green', '核心必考（必修核心題）'] }[tag] || ['核心必考', 'bg-brand-green', '核心必考（必修核心題）'];
                     qSylBadge.textContent = conf[0];
                     qSylBadge.title = conf[2];
-                    qSylBadge.className = 'text-xs font-bold px-2 py-1 rounded border-2 border-black text-white ' + conf[1];
+                    qSylBadge.className = 'text-xs font-bold px-2 py-1 rounded border-2 border-black ' + (conf[1] === 'bg-white' ? 'text-black ' : 'text-white ') + conf[1];
                 }
                 
                 document.getElementById('q-text').innerText = q.question;
@@ -1740,7 +1830,7 @@
                     const label = document.createElement('label');
                     label.className = "cursor-pointer block relative group";
                     label.innerHTML = `
-                        <input type="radio" name="opt" class="hidden option-input" value="${idx}" ${isSelected ? 'checked' : ''} onchange="app.selectOption(${idx})">
+                        <input type="radio" name="opt" class="sr-only option-input" value="${idx}" ${isSelected ? 'checked' : ''} onchange="app.selectOption(${idx})">
                         <div class="p-4 rounded-xl border-2 border-gray-300 dark:border-gray-600 hover:border-black dark:hover:border-white transition flex items-center gap-3">
                             <span class="w-8 h-8 rounded-full border-2 border-gray-400 flex items-center justify-center font-bold text-gray-500 group-hover:bg-black group-hover:text-white transition-colors">
                                 ${String.fromCharCode(65 + idx)}
@@ -1774,6 +1864,8 @@
                     document.getElementById('btn-submit').classList.add('hidden');
                 }
 
+                this.renderAnswerSheet();
+
                 const qId = q.id || this.currentIndex;
                 if (this.mode === 'practice' && this.userAnswers[qId] !== undefined) {
                     this.showFeedback(q, this.userAnswers[qId]);
@@ -1791,6 +1883,7 @@
                 if (this.mode === 'practice') {
                     this.showFeedback(q, idx);
                 }
+                this.renderAnswerSheet();
                 this.saveQuizProgress();
             }
 
@@ -1799,10 +1892,10 @@
                 const opts = document.querySelectorAll('.option-input + div');
                 
                 opts[selectedIdx].classList.remove('border-gray-300', 'border-black');
-                opts[selectedIdx].classList.add(isCorrect ? 'bg-green-100' : 'bg-red-100', isCorrect ? 'border-green-500' : 'border-red-500', 'text-black');
+                opts[selectedIdx].classList.add(isCorrect ? 'bg-brand-green/20' : 'bg-brand-red/20', isCorrect ? 'border-brand-green' : 'border-brand-red', 'text-black');
                 
                 if (!isCorrect) {
-                    opts[q.answer].classList.add('bg-green-100', 'border-green-500', 'text-black');
+                    opts[q.answer].classList.add('bg-brand-green/20', 'border-brand-green', 'text-black');
                     this.addMistake(q);
                 }
 
@@ -1952,11 +2045,12 @@ if (playerName && playerName !== "訪客") {
             }
 
             fireConfetti() {
+                if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
                 for(let i=0; i<50; i++) {
                     const c = document.createElement('div');
                     c.className = 'confetti';
                     c.style.left = Math.random() * 100 + 'vw';
-                    c.style.backgroundColor = ['#FFD93D', '#4D96FF', '#FF6B6B'][Math.floor(Math.random()*3)];
+                    c.style.backgroundColor = ['#B4892B', '#1F4ED8', '#C81E1E'][Math.floor(Math.random()*3)];
                     c.style.animationDuration = (Math.random() * 2 + 2) + 's';
                     document.body.appendChild(c);
                     setTimeout(() => c.remove(), 4000);
@@ -1983,17 +2077,17 @@ if (playerName && playerName !== "訪客") {
 
                 const s = sessions[this.reviewSessionIdx];
                 if (!s || !s.items || s.items.length === 0) {
-                    host.innerHTML = '<div class="text-center text-gray-400 font-bold py-6"><i class="fa-solid fa-circle-check text-3xl mb-2 block text-green-500"></i>該次測驗無錯題，做得好！</div>';
+                    host.innerHTML = '<div class="text-center text-gray-600 dark:text-gray-400 font-bold py-6"><i class="fa-solid fa-circle-check text-3xl mb-2 block text-green-500"></i>該次測驗無錯題，做得好！</div>';
                     return;
                 }
                 const L = 'ABCD';
                 host.innerHTML = s.items.map(({ q, userAns }) => {
                     const linkHtml = this.linkedContextHtml(q);
                     const linkCard = linkHtml
-                        ? `<div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">${linkHtml}</div>`
+                        ? `<div class="mb-3 p-3 bg-paper dark:bg-gray-700 border-l-4 border-brand-blue rounded-r-lg">${linkHtml}</div>`
                         : '';
                     const opts = (q.options || []).map((o, k) => `
-                        <div class="px-3 py-2 rounded border-2 text-sm ${k === q.answer ? 'bg-green-100 border-green-500 text-black font-bold' : (k === userAns ? 'bg-red-100 border-red-500 text-black font-bold' : 'border-gray-200 dark:border-gray-600')}">
+                        <div class="px-3 py-2 rounded border-2 text-sm ${k === q.answer ? 'bg-brand-green/20 border-brand-green text-black font-bold' : (k === userAns ? 'bg-brand-red/20 border-brand-red text-black font-bold' : 'border-gray-200 dark:border-gray-600')}">
                             <span class="font-bold mr-1">${L[k]}.</span>${escapeHtml(String(o))}
                         </div>`).join('');
                     return `
@@ -2001,7 +2095,7 @@ if (playerName && playerName !== "訪客") {
                         <div class="flex flex-wrap gap-2 items-center mb-2">
                             <span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-yellow text-black">${escapeHtml(this.questionLabel(q))}</span>
                             ${this.syllabusBadge(q)}
-                            <span class="text-xs font-bold text-red-500 ml-auto">你答：${L[userAns] ?? '?'}・正確：${L[q.answer] ?? '?'}</span>
+                            <span class="text-xs font-bold text-brand-red ml-auto">你答：${L[userAns] ?? '?'}・正確：${L[q.answer] ?? '?'}</span>
                         </div>
                         ${linkCard}
                         <div class="font-medium mb-3" style="white-space: pre-line;">${escapeHtml(String(q.question || ''))}</div>
@@ -2058,15 +2152,15 @@ if (playerName && playerName !== "訪客") {
                     div.className = "cartoon-card p-6 bg-white dark:bg-gray-800 relative";
                     const linkHtml = this.linkedContextHtml(q);
                     const linkCard = linkHtml
-                        ? `<div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">${linkHtml}</div>`
+                        ? `<div class="mb-3 p-3 bg-paper dark:bg-gray-700 border-l-4 border-brand-blue rounded-r-lg">${linkHtml}</div>`
                         : '';
                     div.innerHTML = `
-                        <div class="absolute top-4 right-4 text-xs font-bold text-gray-400">${this.syllabusBadge(q).replace('class="text-xs', 'class="inline-block mr-1 text-xs').replace('px-2 py-1', 'px-2 py-0.5')}${q.year}</div>
+                        <div class="absolute top-4 right-4 text-xs font-bold text-gray-600 dark:text-gray-400">${this.syllabusBadge(q).replace('class="text-xs', 'class="inline-block mr-1 text-xs').replace('px-2 py-1', 'px-2 py-0.5')}${q.year}</div>
                         ${linkCard}
                         <h4 class="font-bold text-lg mb-3 pr-8" style="white-space: pre-line;">${q.question}</h4>
                         <div class="space-y-2 mb-4">
                             ${q.options.map((opt, i) => `
-                                <div class="px-3 py-2 rounded border ${i === q.answer ? 'bg-green-100 border-green-500 text-black' : 'border-gray-200 dark:border-gray-600'}">
+                                <div class="px-3 py-2 rounded border ${i === q.answer ? 'bg-brand-green/20 border-brand-green text-black' : 'border-gray-200 dark:border-gray-600'}">
                                     ${String.fromCharCode(65+i)}. ${opt}
                                 </div>
                             `).join('')}
@@ -2074,7 +2168,7 @@ if (playerName && playerName !== "訪客") {
                         <div class="text-sm bg-blue-50 dark:bg-blue-900/20 p-3 rounded text-brand-blue dark:text-blue-300" style="white-space: pre-line;">
                             <strong>詳解：</strong> ${q.explanation}
                         </div>
-                        <button class="mt-4 text-xs text-red-500 underline font-bold" onclick="app.removeMistake('${q.id}')">移除此題</button>
+                        <button class="mt-4 text-xs text-brand-red underline font-bold" onclick="app.removeMistake('${q.id}')">移除此題</button>
                     `;
                     list.appendChild(div);
                 };
@@ -2083,7 +2177,7 @@ if (playerName && playerName !== "訪客") {
                     const g = groups.get(sid);
                     const header = document.createElement('h3');
                     header.className = "text-lg font-bold flex items-center gap-2 mt-2";
-                    header.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-gray-400"></i><span>${escapeHtml(g.label)}</span><span class="text-xs font-bold px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300">${g.items.length} 題</span>`;
+                    header.innerHTML = `<i class="fa-solid fa-clock-rotate-left text-gray-600 dark:text-gray-400"></i><span>${escapeHtml(g.label)}</span><span class="text-xs font-bold px-2 py-1 rounded-full bg-brand-red/20 dark:bg-red-900/40 text-red-600 dark:text-red-300">${g.items.length} 題</span>`;
                     list.appendChild(header);
                     g.items.forEach(addCard);
                 });
@@ -2186,9 +2280,9 @@ if (playerName && playerName !== "訪客") {
             // 考綱徽章 HTML（三級共用）
             syllabusBadge(q) {
                 const tag = this.syllabusTag(q);
-                if (tag === 'OUT') return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-red-500 text-white" title="完全剔除（官方指引明確剔除）">OUT</span>';
-                if (tag === 'BM') return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-purple-500 text-white" title="選修單元（BM Strand）">選修單元</span>';
-                return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-green-600 text-white" title="核心必考（必修核心題）">核心必考</span>';
+                if (tag === 'OUT') return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-red text-white" title="完全剔除（官方指引明確剔除）">OUT</span>';
+                if (tag === 'BM') return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-white text-black" title="選修單元（BM Strand）">選修單元</span>';
+                return '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-green text-white" title="核心必考（必修核心題）">核心必考</span>';
             }
 
             // 承上題判定：題目開頭寫「承上題」，資料喺 id-1 嗰題
@@ -2246,9 +2340,9 @@ if (playerName && playerName !== "訪客") {
                 });
                 const defs = [
                     ['ALL', '全部', 'bg-brand-blue text-white'],
-                    ['CORE', '核心必考', 'bg-green-600 text-white'],
-                    ['NO_OUT', '排除OUT', 'bg-amber-500 text-white'],
-                    ['BM', '選修單元', 'bg-purple-500 text-white']
+                    ['CORE', '核心必考', 'bg-brand-green text-white'],
+                    ['NO_OUT', '排除OUT', 'bg-brand-yellow text-black'],
+                    ['BM', '選修單元', 'bg-brand-dark text-white']
                 ];
                 host.innerHTML = defs.map(([v, label, on]) => `
                     <button onclick="app.setSylFilter('${v}')"
@@ -2362,11 +2456,11 @@ if (playerName && playerName !== "訪客") {
                 const ans = String.fromCharCode(65 + Number(prev.answer));
                 const ansText = prev.options && prev.options[prev.answer] !== undefined ? prev.options[prev.answer] : '';
                 return `
-                    <div class="font-bold text-amber-700 dark:text-amber-300 text-sm mb-1">
+                    <div class="font-bold text-brand-blue dark:text-blue-300 text-sm mb-1">
                         <i class="fa-solid fa-link mr-1"></i>${escapeHtml(title)}
                     </div>
                     <div class="text-sm md:text-base text-gray-700 dark:text-gray-200" style="white-space: pre-line;">${escapeHtml(String(prev.question))}</div>
-                    <div class="text-xs font-bold text-amber-700 dark:text-amber-300 mt-2">上題答案：${ans}（${escapeHtml(String(ansText))}）</div>
+                    <div class="text-xs font-bold text-brand-blue dark:text-blue-300 mt-2">上題答案：${ans}（${escapeHtml(String(ansText))}）</div>
                 `;
             }
 
@@ -2484,14 +2578,14 @@ if (playerName && playerName !== "訪客") {
                 document.getElementById('ana-topics').innerHTML = topicRows.map(t => {
                     const pct = Math.round(t.rate * 100);
                     const color = pct >= 70 ? 'bg-brand-green' : (pct >= 50 ? 'bg-brand-yellow' : 'bg-brand-red');
-                    const ref = t.a < 3 ? ' <span class="text-xs font-normal text-gray-400">(參考)</span>' : '';
+                    const ref = t.a < 3 ? ' <span class="text-xs font-normal text-gray-600 dark:text-gray-400">(參考)</span>' : '';
                     return `
                     <div>
                         <div class="flex justify-between items-center text-sm font-bold mb-1 gap-2">
-                            <span class="break-words">${escapeHtml(t.name)}${ref} <span class="text-gray-400 font-normal">${t.q} 題・作答 ${t.a} 次</span></span>
+                            <span class="break-words">${escapeHtml(t.name)}${ref} <span class="text-gray-600 dark:text-gray-400 font-normal">${t.q} 題・作答 ${t.a} 次</span></span>
                             <span class="flex items-center gap-2 shrink-0">
                                 <span>${pct}%</span>
-                                <button class="text-xs px-2 py-1 rounded-lg border-2 border-black bg-brand-green text-white font-bold whitespace-nowrap hover:bg-green-600"
+                                <button class="text-xs px-2 py-1 rounded-lg border-2 border-black bg-brand-green text-white font-bold whitespace-nowrap hover:brightness-110"
                                     data-topic="${escapeHtml(t.name)}" onclick="app.startTopicDrill(this.dataset.topic)">專練</button>
                             </span>
                         </div>
@@ -2518,11 +2612,11 @@ if (playerName && playerName !== "訪客") {
                     .sort((x, y) => y.avg - x.avg);
                 const maxAvg = timeRows.length ? timeRows[0].avg : 0;
                 document.getElementById('ana-time').innerHTML = timeRows.length === 0
-                    ? '<p class="text-sm text-gray-400">暫無用時紀錄，做題時會自動記錄</p>'
+                    ? '<p class="text-sm text-gray-600 dark:text-gray-400">暫無用時紀錄，做題時會自動記錄</p>'
                     : timeRows.map(t => `
                     <div>
                         <div class="flex justify-between items-center text-sm font-bold mb-1 gap-2">
-                            <span class="break-words">${escapeHtml(t.name)}${t.n < 3 ? ' <span class="text-xs font-normal text-gray-400">(參考)</span>' : ''} <span class="text-gray-400 font-normal">作答 ${t.n} 次</span></span>
+                            <span class="break-words">${escapeHtml(t.name)}${t.n < 3 ? ' <span class="text-xs font-normal text-gray-600 dark:text-gray-400">(參考)</span>' : ''} <span class="text-gray-600 dark:text-gray-400 font-normal">作答 ${t.n} 次</span></span>
                             <span class="shrink-0">${t.avg.toFixed(1)} 秒</span>
                         </div>
                         <div class="w-full bg-gray-200 dark:bg-gray-700 h-4 border-2 border-black rounded-full overflow-hidden">
@@ -2539,7 +2633,7 @@ if (playerName && playerName !== "訪客") {
 
                 const weakBody = document.getElementById('ana-weak-list');
                 if (weak.length === 0) {
-                    weakBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">暫時冇錯題，繼續保持！</td></tr>';
+                    weakBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-600 dark:text-gray-400">暫時冇錯題，繼續保持！</td></tr>';
                 } else {
                     weakBody.innerHTML = weak.map(item => {
                         const pct = Math.round(item.rate * 100);
@@ -2549,12 +2643,12 @@ if (playerName && playerName !== "訪客") {
                         <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td class="p-3 font-bold whitespace-nowrap">${escapeHtml(this.questionLabel(item.q, item.qid))}</td>
                             <td class="p-3">${escapeHtml(item.r.topic)}</td>
-                            <td class="p-3 text-right font-bold text-red-500">${item.r.w}</td>
-                            <td class="p-3 text-right font-bold ${pct >= 60 ? 'text-red-500' : 'text-orange-400'}">${pct}%</td>
+                            <td class="p-3 text-right font-bold text-brand-red">${item.r.w}</td>
+                            <td class="p-3 text-right font-bold ${pct >= 60 ? 'text-brand-red' : 'text-gray-700 dark:text-gray-200'}">${pct}%</td>
                             <td class="p-3 text-gray-500 hidden md:table-cell">${escapeHtml(excerpt)}${item.q && item.q.question.length > 40 ? '…' : ''}</td>
                             <td class="p-3 text-right whitespace-nowrap">${canAdd
                                 ? `<button class="text-xs text-brand-blue underline font-bold whitespace-nowrap" data-qid="${escapeHtml(item.qid)}" onclick="app.addMistakeByQid(this.dataset.qid)">加入錯題本</button>`
-                                : '<span class="text-xs text-gray-400">—</span>'}</td>
+                                : '<span class="text-xs text-gray-600 dark:text-gray-400">—</span>'}</td>
                         </tr>`;
                     }).join('');
                 }
@@ -2563,14 +2657,14 @@ if (playerName && playerName !== "訪客") {
                 const histEl = document.getElementById('ana-history');
                 const hist = (this.history || []).slice(0, 10);
                 if (hist.length === 0) {
-                    histEl.innerHTML = '<p class="text-gray-400 text-sm">未有紀錄</p>';
+                    histEl.innerHTML = '<p class="text-gray-600 dark:text-gray-400 text-sm">未有紀錄</p>';
                 } else {
                     histEl.innerHTML = hist.map(h => {
                         const d = new Date(h.t);
                         const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                         const pct = h.n ? Math.round((h.c / h.n) * 100) : 0;
                         const color = pct >= 70 ? 'text-brand-green' : (pct >= 50 ? 'text-yellow-500' : 'text-brand-red');
-                        const skip = h.u ? ` <span class="text-gray-400 font-normal">・未答 ${h.u}</span>` : '';
+                        const skip = h.u ? ` <span class="text-gray-600 dark:text-gray-400 font-normal">・未答 ${h.u}</span>` : '';
                         return `
                         <div class="flex justify-between items-center text-sm border-b dark:border-gray-700 pb-2">
                             <span class="font-bold">${escapeHtml(dateStr)}</span>
@@ -2590,7 +2684,7 @@ if (playerName && playerName !== "訪客") {
                 if (!host) return;
                 const hist = (this.history || []).slice(0, 30).reverse();
                 if (hist.length < 2) {
-                    host.innerHTML = '<p class="text-gray-400 text-sm">至少完成 2 次練習，就會顯示你嘅正確率趨勢。</p>';
+                    host.innerHTML = '<p class="text-gray-600 dark:text-gray-400 text-sm">至少完成 2 次練習，就會顯示你嘅正確率趨勢。</p>';
                     if (badge) badge.innerText = '';
                     return;
                 }
@@ -2623,7 +2717,7 @@ if (playerName && playerName !== "訪客") {
                 const delta = Math.round(last - first);
                 if (badge) {
                     badge.innerText = `${delta > 0 ? '▲ +' : (delta < 0 ? '▼ ' : '► ')}${delta} 點`;
-                    badge.className = 'ml-auto text-sm font-bold ' + (delta > 0 ? 'text-brand-green' : (delta < 0 ? 'text-brand-red' : 'text-gray-400'));
+                    badge.className = 'ml-auto text-sm font-bold ' + (delta > 0 ? 'text-brand-green' : (delta < 0 ? 'text-brand-red' : 'text-gray-600 dark:text-gray-400'));
                 }
 
                 host.innerHTML = `
@@ -2790,7 +2884,7 @@ if (playerName && playerName !== "訪客") {
 
                 const host = document.getElementById('bank-list');
                 if (list.length === 0) {
-                    host.innerHTML = '<div class="cartoon-card p-10 text-center text-gray-400 bg-white dark:bg-gray-800">' +
+                    host.innerHTML = '<div class="cartoon-card p-10 text-center text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800">' +
                         '<i class="fa-solid fa-magnifying-glass text-4xl mb-3 block"></i>搵唔到符合嘅題目</div>';
                     return;
                 }
@@ -2803,11 +2897,11 @@ if (playerName && playerName !== "訪客") {
                     const ansLetter = ansIdx >= 0 ? L[ansIdx] : '?';
                     const linkHtml = this.linkedContextHtml(q);
                     const linkCard = linkHtml
-                        ? `<div class="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 rounded-r-lg">${linkHtml}</div>`
+                        ? `<div class="mb-3 p-3 bg-paper dark:bg-gray-700 border-l-4 border-brand-blue rounded-r-lg">${linkHtml}</div>`
                         : '';
 
                     const opts = (q.options || []).map((o, k) => `
-                        <div class="px-3 py-2 rounded border-2 text-sm ${showAns && k === ansIdx ? 'bg-green-100 border-green-500 text-black font-bold' : 'border-gray-300 dark:border-gray-600'}">
+                        <div class="px-3 py-2 rounded border-2 text-sm ${showAns && k === ansIdx ? 'bg-brand-green/20 border-brand-green text-black font-bold' : 'border-gray-300 dark:border-gray-600'}">
                             <span class="font-bold mr-1">${L[k]}.</span>${escapeHtml(String(o))}
                         </div>`).join('');
 
@@ -2824,7 +2918,7 @@ if (playerName && playerName !== "訪客") {
                                 <button onclick="app.toggleBankAns(${i})" class="text-xs font-bold px-3 py-1 rounded border-2 border-black bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600">
                                     <i class="fa-solid fa-lightbulb"></i> 答案・詳解
                                 </button>
-                                <button data-qid="${escapeHtml(String(qid))}" onclick="app.addMistakeByQid(this.dataset.qid)" class="text-xs font-bold px-3 py-1 rounded border-2 border-black bg-brand-green text-white hover:bg-green-600">
+                                <button data-qid="${escapeHtml(String(qid))}" onclick="app.addMistakeByQid(this.dataset.qid)" class="text-xs font-bold px-3 py-1 rounded border-2 border-black bg-brand-green text-white hover:brightness-110">
                                     <i class="fa-solid fa-plus"></i> 錯題本
                                 </button>
                             </div>
@@ -2981,8 +3075,8 @@ async saveToLeaderboard(isAuto = false) {
                         let rankClass = "";
                         let icon = "";
                         if (idx === 0) { rankClass = "text-brand-yellow font-bold text-xl"; icon = "👑"; }
-                        else if (idx === 1) { rankClass = "text-gray-400 font-bold text-lg"; icon = "🥈"; }
-                        else if (idx === 2) { rankClass = "text-orange-400 font-bold text-lg"; icon = "🥉"; }
+                        else if (idx === 1) { rankClass = "text-gray-600 dark:text-gray-400 font-bold text-lg"; icon = "🥈"; }
+                        else if (idx === 2) { rankClass = "text-brand-yellow font-bold text-lg"; icon = "🥉"; }
 
                         const row = `
                             <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -2997,7 +3091,7 @@ async saveToLeaderboard(isAuto = false) {
 
                 } catch (e) {
                     console.error(e);
-                    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-brand-red">
                         無法載入數據<br>
                         <span class="text-xs text-gray-500">${escapeHtml(e.message)}</span><br>
                         <span class="text-xs">請檢查 Firestore 規則是否設為 Test Mode</span>

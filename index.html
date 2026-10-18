@@ -123,6 +123,36 @@
         }
 
         /* 答題卡圓圈 */
+        /* hero 次要工具掣：ghost 風格，同高、有 icon */
+        .ghost-tool {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            width: 100%;
+            min-height: 3.25rem;
+            padding: 0.6rem 0.85rem;
+            border: 2px solid rgba(255, 255, 255, 0.55);
+            border-radius: 0.75rem;
+            color: #fff;
+            font-weight: 700;
+            text-align: left;
+            transition: background-color .15s ease, border-color .15s ease;
+        }
+        .ghost-tool > i {
+            font-size: 1.05rem;
+            width: 1.6rem;
+            text-align: center;
+            color: #B4892B;
+        }
+        .ghost-tool:hover {
+            background-color: rgba(255, 255, 255, 0.12);
+            border-color: #fff;
+        }
+        .ghost-tool:focus-visible {
+            outline: 3px solid #B4892B;
+            outline-offset: 2px;
+        }
+
         .sheet-dot {
             width: 1.75rem;
             height: 1.75rem;
@@ -271,14 +301,26 @@
                             </button>
                         </div>
                     </div>
-                    <div class="mt-6 md:mt-1 md:w-52 shrink-0">
-                        <div class="text-xs font-bold tracking-wide text-white/70">其他練習</div>
-                        <div class="mt-2 flex flex-wrap md:flex-col gap-x-4 gap-y-1 text-sm">
-                            <button onclick="app.startMiniQuiz()" class="text-left underline decoration-white/40 hover:decoration-white">極速小測 20 題</button>
-                            <button onclick="app.openCustomQuizModal()" class="text-left underline decoration-white/40 hover:decoration-white">自訂測驗</button>
-                            <button onclick="app.router('mistakes')" class="text-left underline decoration-white/40 hover:decoration-white">重溫錯題</button>
-                            <button onclick="app.router('bank')" class="text-left underline decoration-white/40 hover:decoration-white">題庫瀏覽</button>
-                        </div>
+                </div>
+                <div class="mt-7 pt-5 border-t-2 border-white/25">
+                    <div class="text-xs font-bold tracking-wide text-white/70 mb-3">更多練習</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <button onclick="app.startMiniQuiz()" class="ghost-tool">
+                            <i class="fa-solid fa-stopwatch"></i>
+                            <span class="flex-1 text-left">極速小測<span class="block text-xs font-normal text-white/70">20 題・限時</span></span>
+                        </button>
+                        <button onclick="app.openCustomQuizModal()" class="ghost-tool">
+                            <i class="fa-solid fa-sliders"></i>
+                            <span class="flex-1 text-left">自訂測驗<span class="block text-xs font-normal text-white/70">自選題數・限時</span></span>
+                        </button>
+                        <button onclick="app.router('mistakes')" class="ghost-tool">
+                            <i class="fa-solid fa-book-skull"></i>
+                            <span class="flex-1 text-left">重溫錯題<span class="block text-xs font-normal text-white/70">按課題分組</span></span>
+                        </button>
+                        <button onclick="app.router('bank')" class="ghost-tool">
+                            <i class="fa-solid fa-book-open"></i>
+                            <span class="flex-1 text-left">題庫瀏覽<span class="block text-xs font-normal text-white/70">414 題・可列印</span></span>
+                        </button>
                     </div>
                 </div>
             </div>

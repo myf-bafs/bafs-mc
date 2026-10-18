@@ -826,8 +826,8 @@
 <div id="topic-drill-modal" class="fixed inset-0 z-50 bg-black/80 hidden flex items-center justify-center p-4">
     <div class="bg-white dark:bg-gray-800 w-full max-w-lg rounded-xl p-6 border-4 border-black shadow-[8px_8px_0_0_#fff]">
         <h3 class="text-2xl font-bold mb-1">課題操練</h3>
-        <p class="text-sm text-gray-500 dark:text-gray-600 dark:text-gray-400 mb-4">揀一個課題即刻開操（做錯過嘅題排先，最多 15 題）</p>
-        <input id="topic-drill-search" type="text" placeholder="搜尋課題…" oninput="app.renderTopicDrillList(this.value)"
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">揀一個範疇即刻開操（做錯過嘅題排先，最多 15 題）</p>
+        <input id="topic-drill-search" type="text" placeholder="搜尋範疇…" oninput="app.renderTopicDrillList(this.value)"
             class="w-full px-4 py-3 mb-4 bg-white dark:bg-gray-700 border-2 border-black dark:border-white rounded-xl outline-none focus:ring-2 focus:ring-brand-blue">
         <div id="topic-drill-list" class="max-h-80 overflow-y-auto pr-1"></div>
         <button onclick="document.getElementById('topic-drill-modal').classList.add('hidden')" class="mt-4 w-full py-3 text-gray-500 font-bold hover:text-black">取消</button>
@@ -1658,11 +1658,7 @@
                     this.showToast(`課題「${topic}」暫無題目`);
                     return;
                 }
-                const wrongOf = q => { const st = (this.qstats || {})[q.id]; return st ? (st.w || 0) : 0; };
-                const wrong = pool.filter(q => wrongOf(q) > 0).sort(() => 0.5 - Math.random());
-                const rest = pool.filter(q => wrongOf(q) === 0).sort(() => 0.5 - Math.random());
-                const take = Math.min(15, pool.length);
-                const qs = this.keepLinked(wrong.concat(rest).slice(0, take), pool, true, take);
+                const qs = this._drillPick(pool);
                 this.startPresetQuiz(qs, `課題特訓：${topic} (${qs.length}題)`);
             }
 
@@ -1673,23 +1669,60 @@
                 document.getElementById('topic-drill-modal').classList.remove('hidden');
             }
 
+            // 課題大 group（官方 7 個部分）：1(a)/(c)/(d) 必修、3(a)-(d) 選修
+            topicGroups() {
+                const pool = window.BAFS_DB || [];
+                const map = new Map();
+                pool.forEach(q => {
+                    const t = q.topic || '未分類';
+                    const key = t.split('：')[0];
+                    if (!map.has(key)) {
+                        const elective = /^3\(/.test(key);
+                        map.set(key, {
+                            key,
+                            title: key.replace('【選修】', ' ').replace(/\s+/g, ' ').trim(),
+                            tag: elective ? '選修' : '必修',
+                            elective,
+                            count: 0
+                        });
+                    }
+                    map.get(key).count++;
+                });
+                return [...map.values()].filter(g => g.count > 0)
+                    .sort((a, b) => a.key.localeCompare(b.key, 'zh-Hant'));
+            }
+
             renderTopicDrillList(kw) {
                 const host = document.getElementById('topic-drill-list');
                 if (!host) return;
                 const k = (kw || '').trim().toLowerCase();
-                const counts = {};
-                (window.BAFS_DB || []).forEach(q => {
-                    const t = q.topic || '未分類';
-                    counts[t] = (counts[t] || 0) + 1;
-                });
-                const shown = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'zh-Hant'))
-                    .filter(t => !k || t.toLowerCase().includes(k));
-                host.innerHTML = shown.map(t => `
-                    <button onclick="document.getElementById('topic-drill-modal').classList.add('hidden');app.startTopicDrill(this.dataset.topic)" data-topic="${escapeHtml(t)}"
-                        class="w-full flex items-center gap-2 text-left px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-black dark:hover:border-white transition mb-2">
-                        <span class="flex-1 font-bold text-sm break-words">${escapeHtml(t)}</span>
-                        <span class="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-brand-blue shrink-0">${counts[t]} 題</span>
-                    </button>`).join('') || '<p class="text-center text-gray-600 dark:text-gray-400 py-6">搵唔到相關課題</p>';
+                const groups = this.topicGroups().filter(g => !k || (g.title + g.key).toLowerCase().includes(k));
+                host.innerHTML = groups.map(g => `
+                    <button onclick="document.getElementById('topic-drill-modal').classList.add('hidden');app.startGroupDrill(this.dataset.group)" data-group="${escapeHtml(g.key)}"
+                        class="w-full flex items-center gap-3 text-left px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-black dark:hover:border-white transition mb-2">
+                        <span class="flex-1">
+                            <span class="font-bold break-words">${escapeHtml(g.title)}</span>
+                            <span class="ml-2 text-xs font-bold px-1.5 py-0.5 rounded border border-gray-400 dark:border-gray-500 text-gray-600 dark:text-gray-300">${g.tag}</span>
+                        </span>
+                        <span class="text-xs font-bold px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-brand-blue shrink-0">${g.count} 題</span>
+                    </button>`).join('') || '<p class="text-center text-gray-600 dark:text-gray-400 py-6">搵唔到相關範疇</p>';
+            }
+
+            // 以大 group 開操：整個部分（做錯過嘅題排先，最多 15 題）
+            startGroupDrill(groupKey) {
+                const pool = (window.BAFS_DB || []).filter(q => (q.topic || '未分類').split('：')[0] === groupKey);
+                if (pool.length === 0) { this.showToast('此範疇暫無題目'); return; }
+                const title = groupKey.replace('【選修】', '');
+                this.startPresetQuiz(this._drillPick(pool), `${title}（${pool.length}題庫）`);
+            }
+
+            // 共用抽題：做錯過嘅排先，再隨機；最多 15 題
+            _drillPick(pool) {
+                const wrongOf = q => { const st = (this.qstats || {})[q.id]; return st ? (st.w || 0) : 0; };
+                const wrong = pool.filter(q => wrongOf(q) > 0).sort(() => 0.5 - Math.random());
+                const rest = pool.filter(q => wrongOf(q) === 0).sort(() => 0.5 - Math.random());
+                const take = Math.min(15, pool.length);
+                return this.keepLinked(wrong.concat(rest).slice(0, take), pool, true, take);
             }
 
             drillWeakestTopic() {

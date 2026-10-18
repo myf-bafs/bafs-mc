@@ -122,6 +122,12 @@
             display: none;
         }
 
+        /* 逐題覆核：原生 details 摺疊 */
+        .rev-item > summary { list-style: none; }
+        .rev-item > summary::-webkit-details-marker { display: none; }
+        .rev-item > summary .rev-caret { transition: transform .15s ease; }
+        .rev-item[open] > summary .rev-caret { transform: rotate(180deg); }
+
         /* 答題卡圓圈 */
         /* 調色盤 fallback：呢幾個 class 只喺 JS 字串出現，避免 Tailwind CDN 掃描時序造成一瞬白字 */
         .bg-ink { background-color: #14161A; }
@@ -531,12 +537,13 @@
 
             <div class="cartoon-card p-5 bg-white dark:bg-gray-800 mb-8 w-full max-w-2xl mx-auto text-left">
                 <div class="flex flex-wrap items-center gap-3 mb-4">
-                    <h3 class="text-xl font-bold"><i class="fa-solid fa-list-check text-brand-red mr-2"></i>錯題回顧</h3>
+                    <h3 class="text-xl font-bold"><i class="fa-solid fa-list-check text-brand-red mr-2"></i>逐題覆核</h3>
                     <select id="result-session-select" onchange="app.setReviewSession(this.value)"
                         class="ml-auto text-sm font-bold px-3 py-2 rounded-lg border-2 border-black bg-white dark:bg-gray-700 dark:text-white outline-none">
                     </select>
                 </div>
-                <div id="result-wrong-list" class="space-y-4"></div>
+                <div id="review-filter" class="flex flex-wrap gap-2 mb-4"></div>
+                <div id="result-wrong-list" class="space-y-3"></div>
             </div>
 
             <div class="flex justify-center gap-4">
@@ -2078,11 +2085,12 @@
                     t: Date.now(),
                     label: `${this.selectedYear} • ${this.mode === 'exam' ? '模擬考' : '練習'}`,
                     total, correct: correctCount, wrong: wrongNow.length,
-                    items: wrongNow
+                    items: this.currentQuestions.map(q => ({ q, userAns: this.userAnswers[q.id] === undefined ? null : this.userAnswers[q.id] }))
                 });
                 if (this.sessions.length > 20) this.sessions.length = 20;
                 this.saveStore('bafs_sessions', this.sessions);
                 this.reviewSessionIdx = 0;
+                this.reviewFilter = 'all';
 
                 // 錯題重測：答啱嘅題自動移出錯題本
                 let released = 0;
@@ -2156,25 +2164,65 @@ if (playerName && playerName !== "訪客") {
             }
 
             // 成績頁錯題回顧：下拉式揀每次測驗/練習，只顯示該次嘅錯題
+            setReviewFilter(f) {
+                this.reviewFilter = f || 'all';
+                this.renderSessionReview();
+            }
+
+            // 成績頁：逐題覆核（今次/每次測驗全部題目，可摺疊；預設摺起答啱嗰啲）
             renderSessionReview() {
                 const sel = document.getElementById('result-session-select');
                 const host = document.getElementById('result-wrong-list');
+                const filt = document.getElementById('review-filter');
                 if (!sel || !host) return;
                 const sessions = this.sessions || [];
                 if (this.reviewSessionIdx >= sessions.length) this.reviewSessionIdx = 0;
                 sel.innerHTML = sessions.map((s, i) => {
                     const d = new Date(s.t);
                     const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                    return `<option value="${i}"${i === this.reviewSessionIdx ? ' selected' : ''}>${escapeHtml(when + ' ' + s.label)}（錯 ${s.wrong} 題）</option>`;
+                    const total = (s.items || []).length;
+                    return `<option value="${i}"${i === this.reviewSessionIdx ? ' selected' : ''}>${escapeHtml(when + ' ' + s.label)}（${total} 題・錯 ${s.wrong}）</option>`;
                 }).join('') || '<option value="0">暫無測驗紀錄</option>';
 
                 const s = sessions[this.reviewSessionIdx];
                 if (!s || !s.items || s.items.length === 0) {
-                    host.innerHTML = '<div class="text-center text-gray-600 dark:text-gray-400 font-bold py-6"><i class="fa-solid fa-circle-check text-3xl mb-2 block text-green-500"></i>該次測驗無錯題，做得好！</div>';
+                    if (filt) filt.innerHTML = '';
+                    host.innerHTML = '<div class="text-center text-gray-600 dark:text-gray-400 font-bold py-6">暫無紀錄</div>';
                     return;
                 }
                 const L = 'ABCD';
-                host.innerHTML = s.items.map(({ q, userAns }) => {
+                const stateOf = it => it.userAns === null || it.userAns === undefined ? 'unanswered'
+                    : (it.userAns === it.q.answer ? 'correct' : 'wrong');
+                const counts = { all: s.items.length, wrong: 0, unanswered: 0, correct: 0 };
+                s.items.forEach(it => counts[stateOf(it)]++);
+
+                if (filt) {
+                    const f = this.reviewFilter || 'all';
+                    const defs = [
+                        ['all', `全部 ${counts.all}`, 'bg-brand-blue text-white'],
+                        ['wrong', `答錯 ${counts.wrong}`, 'bg-brand-red text-white'],
+                        ['unanswered', `未答 ${counts.unanswered}`, 'bg-gray-600 text-white'],
+                        ['correct', `答對 ${counts.correct}`, 'bg-brand-green text-white']
+                    ];
+                    filt.innerHTML = defs.map(([v, t, on]) => `
+                        <button onclick="app.setReviewFilter('${v}')"
+                            class="px-3 py-1.5 rounded-full border-2 border-black text-xs font-bold transition ${(f === v) ? on : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'}">${t}</button>`).join('');
+                }
+
+                const f = this.reviewFilter || 'all';
+                const rows = s.items.filter(it => f === 'all' ? true : stateOf(it) === f);
+                if (rows.length === 0) {
+                    host.innerHTML = '<div class="text-center text-gray-600 dark:text-gray-400 font-bold py-6">此篩選無題目</div>';
+                    return;
+                }
+                const chipOf = st => ({
+                    correct: '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-green text-white">答對</span>',
+                    wrong: '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-red text-white">答錯</span>',
+                    unanswered: '<span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-gray-600 text-white">未作答</span>'
+                }[st]);
+
+                host.innerHTML = rows.map(({ q, userAns }) => {
+                    const st = stateOf({ q, userAns });
                     const linkHtml = this.linkedContextHtml(q);
                     const linkCard = linkHtml
                         ? `<div class="mb-3 p-3 bg-paper dark:bg-gray-700 border-l-4 border-brand-blue rounded-r-lg">${linkHtml}</div>`
@@ -2183,18 +2231,23 @@ if (playerName && playerName !== "訪客") {
                         <div class="px-3 py-2 rounded border-2 text-sm ${k === q.answer ? 'bg-brand-green/20 border-brand-green text-black font-bold' : (k === userAns ? 'bg-brand-red/20 border-brand-red text-black font-bold' : 'border-gray-200 dark:border-gray-600')}">
                             <span class="font-bold mr-1">${L[k]}.</span>${escapeHtml(String(o))}
                         </div>`).join('');
+                    const mine = userAns === null || userAns === undefined ? '未作答' : L[userAns];
                     return `
-                    <div class="border-2 border-gray-200 dark:border-gray-600 rounded-xl p-4 bg-white dark:bg-gray-800">
-                        <div class="flex flex-wrap gap-2 items-center mb-2">
+                    <details class="rev-item border-2 border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800"${st === 'correct' ? '' : ' open'}>
+                        <summary class="flex flex-wrap gap-2 items-center p-3">
                             <span class="text-xs font-bold px-2 py-1 rounded border-2 border-black bg-brand-yellow text-black">${escapeHtml(this.questionLabel(q))}</span>
                             ${this.syllabusBadge(q)}
-                            <span class="text-xs font-bold text-brand-red ml-auto">你答：${L[userAns] ?? '?'}・正確：${L[q.answer] ?? '?'}</span>
+                            ${chipOf(st)}
+                            <span class="text-xs font-bold text-gray-700 dark:text-gray-200">你答：${mine}・正解：${L[q.answer] ?? '?'}</span>
+                            <span class="ml-auto text-xs font-bold text-gray-600 dark:text-gray-300">展開<i class="fa-solid fa-chevron-down rev-caret ml-1"></i></span>
+                        </summary>
+                        <div class="px-4 pb-4">
+                            ${linkCard}
+                            <div class="font-medium mb-3" style="white-space: pre-line;">${escapeHtml(String(q.question || ''))}</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">${opts}</div>
+                            <div class="text-sm text-gray-700 dark:text-gray-300 bg-paper dark:bg-gray-700 p-3 rounded" style="white-space: pre-line;">${escapeHtml(String(q.explanation || ''))}</div>
                         </div>
-                        ${linkCard}
-                        <div class="font-medium mb-3" style="white-space: pre-line;">${escapeHtml(String(q.question || ''))}</div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">${opts}</div>
-                        <div class="text-sm text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20 p-3 rounded" style="white-space: pre-line;">${escapeHtml(String(q.explanation || ''))}</div>
-                    </div>`;
+                    </details>`;
                 }).join('');
             }
 

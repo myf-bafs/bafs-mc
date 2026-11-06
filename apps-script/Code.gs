@@ -10,14 +10,17 @@
  *
  * 佢會自動維持：
  *   - Raw            ：一列一題嘅原始答題紀錄（資料來源）
+ *   - 交卷詳情        ：全班每次交卷嘅完成時間、分數、正確率等（新→舊）
  *   - 每個用家一個分頁：該學生每次交卷、課題正確率、最差題目
  *   - 全班總覽        ：學生對比 + 全班課題強弱 + 全班最差題目 Top 20
+ *   - MC 答案分佈     ：每題選項人數分佈
  */
 
 const CONFIG = {
   SPREADSHEET_ID: '', // 留空 = 用綁定嘅試算表；否則填 Sheet ID
   SHARED_TOKEN: '',   // 設咗就要求前端帶 token（擋爬蟲/濫用，唔係真認證）
   RAW_SHEET: 'Raw',
+  SESSIONS_SHEET: '交卷詳情',
   OVERVIEW_SHEET: '全班總覽',
   MC_SHEET: 'MC 答案分佈',
   RATE_LIMIT_SECONDS: 3,   // 同一暱稱最短間隔（秒）
@@ -30,9 +33,14 @@ const CONFIG = {
 
 const RAW_HEADERS = [
   'ts', 'submissionId', 'nickname', 'year', 'mode', 'score', 'total', 'accuracy',
-  'qid', 'qnum', 'topic', 'userAns', 'correctAns', 'isCorrect', 'qtext'
+  'qid', 'qnum', 'topic', 'userAns', 'correctAns', 'isCorrect', 'qtext',
+  'startedAt', 'durationSec', 'device'
 ];
-const COL = { ts: 0, sub: 1, nick: 2, year: 3, mode: 4, score: 5, total: 6, acc: 7, qid: 8, qnum: 9, topic: 10, userAns: 11, correctAns: 12, ok: 13, qtext: 14 };
+const COL = {
+  ts: 0, sub: 1, nick: 2, year: 3, mode: 4, score: 5, total: 6, acc: 7,
+  qid: 8, qnum: 9, topic: 10, userAns: 11, correctAns: 12, ok: 13, qtext: 14,
+  startedAt: 15, duration: 16, device: 17
+};
 /* ==== 課題分類對照（2012–2025，共414題；同 index (4).html 題目庫同步）==== */
 const TOPIC_LABELS = [
   "1(a) 營商環境",
@@ -119,7 +127,20 @@ Object.keys(TOPIC_ROWS).forEach(y => {
 
 /* ============================ 入口 ============================ */
 
-function doGet() {
+function doGet(e) {
+  try {
+    const p = (e && e.parameter) || {};
+    // 手動重建：GET ?rebuild=1（若設咗 SHARED_TOKEN 要一齊帶 token）
+    if (String(p.rebuild || '') === '1') {
+      if (CONFIG.SHARED_TOKEN && p.token !== CONFIG.SHARED_TOKEN) {
+        return json_({ ok: false, err: 'bad_token' });
+      }
+      rebuildAll();
+      return json_({ ok: true, rebuilt: true });
+    }
+  } catch (err) {
+    return json_({ ok: false, err: 'rebuild_failed', detail: String(err && err.message || err) });
+  }
   return json_({ ok: true, app: 'BAFS MC', hint: 'POST JSON to this endpoint' });
 }
 
@@ -157,6 +178,7 @@ function doPost(e) {
     const allRows = raw.values.concat(rows);
 
     updateUserTab_(ss, nickname, allRows);
+    updateSessions_(ss, allRows);
     updateOverview_(ss, allRows);
     updateMCStats_(ss, allRows);
 
@@ -178,6 +200,9 @@ function validate_(b) {
   if (!isNum_(b.total, 0, 1000)) p.push('total');
   if (!isNum_(b.accuracy, 0, 100)) p.push('accuracy');
   if (b.answered !== undefined && !isNum_(b.answered, 0, 1000)) p.push('answered');
+  if (b.durationSec !== undefined && !isNum_(b.durationSec, 0, 6 * 60 * 60)) p.push('durationSec');
+  if (b.device !== undefined && typeof b.device !== 'string') p.push('device');
+  if (b.startedAt !== undefined && typeof b.startedAt !== 'string' && typeof b.startedAt !== 'number') p.push('startedAt');
   if (!Array.isArray(b.questions)) p.push('questions');
   else if (b.questions.length > CONFIG.MAX_QUESTIONS) p.push('questions_too_long');
   else {
@@ -211,6 +236,11 @@ function buildRows_(b, nickname, submissionId) {
   const year = guard_(str_(b.year, CONFIG.MAX_STR));
   const mode = b.mode;
   const score = b.score, total = b.total, accuracy = b.accuracy;
+  const startedAt = b.startedAt === undefined || b.startedAt === null
+    ? ''
+    : (typeof b.startedAt === 'number' ? new Date(b.startedAt).toISOString() : guard_(str_(b.startedAt, CONFIG.MAX_STR)));
+  const durationSec = isNum_(b.durationSec, 0, 6 * 60 * 60) ? b.durationSec : '';
+  const device = guard_(str_(b.device, CONFIG.MAX_STR));
 
   return b.questions.map((q, i) => [
     ts,
@@ -227,7 +257,10 @@ function buildRows_(b, nickname, submissionId) {
     q.userAns || '',
     q.correctAns,
     q.isCorrect,
-    guard_(q.qtext === undefined ? '' : q.qtext, CONFIG.MAX_QTEXT)
+    guard_(q.qtext === undefined ? '' : q.qtext, CONFIG.MAX_QTEXT),
+    startedAt,
+    durationSec,
+    device
   ]);
 }
 
@@ -304,6 +337,187 @@ function updateUserTab_(ss, nickname, allRows) {
     ['題號 qid', '題目', '課題', '錯誤次數（累計）', '已作答', '錯誤率'], weakRows);
   sheet.setColumnWidth(2, 420);
   sheet.setFrozenRows(0);
+}
+
+/* ============================ 交卷詳情（全班，一列一次交卷） ============================ */
+
+/** ISO / Date → 香港時間顯示字串 */
+function hkTime_(ts) {
+  try {
+    const d = ts instanceof Date ? ts : new Date(ts);
+    if (isNaN(d.getTime())) return String(ts || '');
+    return Utilities.formatDate(d, 'Asia/Hong_Kong', 'yyyy-MM-dd HH:mm:ss');
+  } catch (e) {
+    return String(ts || '');
+  }
+}
+
+/** 秒數 → mm:ss（超過 1 小時用 h:mm:ss） */
+function fmtDuration_(sec) {
+  const n = Number(sec);
+  if (!isFinite(n) || n < 0 || sec === '' || sec === null || sec === undefined) return '—';
+  const s = Math.round(n);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  const pad = x => (x < 10 ? '0' : '') + x;
+  if (h > 0) return h + ':' + pad(m) + ':' + pad(r);
+  return m + ':' + pad(r);
+}
+
+/** 呢次交卷最弱課題（正確率最低；同分取作答較多） */
+function worstTopic_(topics) {
+  let worst = '', worstRate = 101, worstA = 0;
+  Object.keys(topics || {}).forEach(t => {
+    const v = topics[t];
+    if (!v || v.a < 1) return;
+    const rate = Math.round((v.c / v.a) * 100);
+    if (rate < worstRate || (rate === worstRate && v.a > worstA)) {
+      worstRate = rate;
+      worst = t;
+      worstA = v.a;
+    }
+  });
+  if (!worst) return '—';
+  return worst + '（' + worstRate + '%）';
+}
+
+function updateSessions_(ss, allRows) {
+  let sheet = ss.getSheetByName(CONFIG.SESSIONS_SHEET);
+  if (!sheet) sheet = ss.insertSheet(CONFIG.SESSIONS_SHEET);
+  // 清內容同條件格式／filter，保留分頁本身
+  const oldFilter = sheet.getFilter();
+  if (oldFilter) oldFilter.remove();
+  sheet.clearConditionalFormatRules();
+  sheet.clear();
+
+  // 按 submissionId 聚合（同一交卷多題 → 一列）
+  const bySub = {};
+  allRows.forEach(r => {
+    const key = String(r[COL.sub] || (r[COL.ts] + '|' + r[COL.nick] + '|' + r[COL.score]));
+    if (!bySub[key]) {
+      bySub[key] = {
+        ts: r[COL.ts],
+        nick: r[COL.nick],
+        year: r[COL.year],
+        mode: r[COL.mode],
+        score: r[COL.score],
+        total: r[COL.total],
+        acc: r[COL.acc],
+        sub: r[COL.sub] || '',
+        duration: r[COL.duration],
+        device: r[COL.device] || '',
+        a: 0, c: 0, s: 0,
+        topics: {}
+      };
+    }
+    const s = bySub[key];
+    // 舊列可能冇 duration／device；有就補上
+    if ((s.duration === '' || s.duration === undefined || s.duration === null) &&
+        r[COL.duration] !== '' && r[COL.duration] !== undefined && r[COL.duration] !== null) {
+      s.duration = r[COL.duration];
+    }
+    if (!s.device && r[COL.device]) s.device = r[COL.device];
+
+    const t = r[COL.topic] || '未分類';
+    s.topics[t] = s.topics[t] || { a: 0, c: 0 };
+    if (isAns_(r)) {
+      s.a += 1;
+      s.topics[t].a += 1;
+      if (r[COL.ok] === 1) {
+        s.c += 1;
+        s.topics[t].c += 1;
+      }
+    } else {
+      s.s += 1;
+    }
+  });
+
+  const headers = [
+    '完成時間（香港）', '暱稱', '年份', '模式', '分數',
+    '已作答', '未作答', '答對', '答錯', '正確率',
+    '用時', '用時（秒）', '最弱課題', '裝置', '交卷 ID'
+  ];
+  const ACC_COL = 10;      // 正確率
+  const DUR_SEC_COL = 12;  // 用時（秒）
+
+  const rows = Object.keys(bySub).map(k => bySub[k])
+    .sort((a, b) => (a.ts < b.ts ? 1 : -1)) // 新→舊
+    .map(s => {
+      const accNum = (s.acc !== undefined && s.acc !== '')
+        ? Number(s.acc)
+        : (s.a ? Math.round((s.c / s.a) * 100) : 0);
+      const durNum = (s.duration === '' || s.duration === undefined || s.duration === null)
+        ? ''
+        : Number(s.duration);
+      return [
+        hkTime_(s.ts),
+        s.nick,
+        s.year,
+        s.mode === 'exam' ? '模擬考' : (s.mode === 'practice' ? '練習' : s.mode),
+        s.score + '/' + s.total,
+        s.a,
+        s.s,
+        s.c,
+        s.a - s.c,
+        isFinite(accNum) ? accNum : 0,          // 數字，方便 filter／條件格式
+        fmtDuration_(durNum),
+        isFinite(durNum) ? durNum : '',
+        worstTopic_(s.topics),
+        s.device || '—',
+        s.sub
+      ];
+    });
+
+  let row = 1;
+  row = writeBlock_(sheet, row, '交卷詳情（全班每次完成 MC；表頭可篩選。正確率 <50% 標紅）',
+    headers, rows);
+
+  sheet.setColumnWidth(1, 160);
+  sheet.setColumnWidth(2, 120);
+  sheet.setColumnWidth(13, 280); // 最弱課題
+  sheet.setColumnWidth(14, 110); // 裝置
+  sheet.setColumnWidth(15, 180); // 交卷 ID
+
+  const headerRow = 2;
+  const dataStart = 3;
+  const lastDataRow = Math.max(headerRow, row - 1);
+  const numCols = headers.length;
+
+  sheet.setFrozenRows(2);
+
+  if (rows.length) {
+    // 正確率顯示為 45%
+    sheet.getRange(dataStart, ACC_COL, lastDataRow, ACC_COL).setNumberFormat('0"%"');
+    sheet.getRange(dataStart, DUR_SEC_COL, lastDataRow, DUR_SEC_COL).setNumberFormat('0');
+
+    // 基本篩選（表頭下拉）
+    sheet.getRange(headerRow, 1, lastDataRow, numCols).createFilter();
+
+    // 正確率條件格式：<50 紅、50–69 黃、≥70 綠
+    const accRange = sheet.getRange(dataStart, ACC_COL, lastDataRow, ACC_COL);
+    const rules = [
+      SpreadsheetApp.newConditionalFormatRule()
+        .setRanges([accRange])
+        .whenNumberLessThan(50)
+        .setBackground('#FCE8E6')
+        .setFontColor('#C5221F')
+        .build(),
+      SpreadsheetApp.newConditionalFormatRule()
+        .setRanges([accRange])
+        .whenNumberBetween(50, 69)
+        .setBackground('#FEF7E0')
+        .setFontColor('#E37400')
+        .build(),
+      SpreadsheetApp.newConditionalFormatRule()
+        .setRanges([accRange])
+        .whenNumberGreaterThanOrEqualTo(70)
+        .setBackground('#E6F4EA')
+        .setFontColor('#137333')
+        .build()
+    ];
+    sheet.setConditionalFormatRules(rules);
+  }
 }
 
 /* ============================ 全班總覽 ============================ */
@@ -611,7 +825,8 @@ function rebuildAll() {
   const names = {};
   raw.values.forEach(r => { names[r[2]] = 1; });
   Object.keys(names).forEach(n => updateUserTab_(ss, n, raw.values));
+  updateSessions_(ss, raw.values);
   updateOverview_(ss, raw.values);
   updateMCStats_(ss, raw.values);
-  Logger.log('已重建 %s 個分頁', Object.keys(names).length);
+  Logger.log('已重建 %s 個分頁 + 交卷詳情', Object.keys(names).length);
 }

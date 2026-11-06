@@ -1300,7 +1300,7 @@
         // === 2b. Google Sheet 即時紀錄 (答對率) ===
         // 做法: 用 Google Apps Script 建立 Web App, 把下面的 URL 貼上即可
         // 留空 = 不啟用, 不影響原有 Firebase 龍虎榜功能
-        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbwMougOtrS5L0WdBVNkqW7VVq9N9pvA0hQhQeaAmUoTbT0w93yPFJvi3XbWiWSsqo0Fjg/exec';
+        const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbx7B5tA-KOZkyEhxjpe25fc6DwhYYZiA6hKaQGrV6wCB2zXoMLbb_PnVCy-73DuZz99/exec';
 
         // === 3. FIREBASE CONFIG 設定區 ===
         const YOUR_FIREBASE_CONFIG = {
@@ -1369,6 +1369,7 @@
                 this.history = this.loadStore('bafs_history', []);
                 this.qtime = this.loadStore('bafs_qtime', {});                // 每題用時：qid → {t 秒, n 次}
                 this.quizActive = false;
+                this.quizStartedAt = null;  // Date.now()，用於計交卷用時
                 this._qTick = 0;
                 this.currentEditingId = null; // null = add mode, string = edit mode ID
                 this.bankYear = 'all';        // 題庫瀏覽：目前選中年份
@@ -1747,6 +1748,7 @@
                 const preset = this.presetSet;
                 this.presetSet = false;
                 this.quizActive = true;
+                this.quizStartedAt = Date.now();
                 // 每次開考編一個 session id，之後加入嘅錯題會打上印記，錯題本用嚟分組
                 this.activeSessionId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
                 this.sessionLabels[this.activeSessionId] = { t: Date.now(), label: `${this.selectedYear} • ${mode === 'exam' ? '模擬考' : '練習'}` };
@@ -2513,6 +2515,7 @@ if (playerName && playerName !== "訪客") {
                     v: 1, savedAt: Date.now(), mode: this.mode, selectedYear: this.selectedYear,
                     currentIndex: this.currentIndex, userAnswers: this.userAnswers,
                     timeRemaining: this.timeRemaining, activeSessionId: this.activeSessionId,
+                    quizStartedAt: this.quizStartedAt || Date.now(),
                     currentQuestions: this.currentQuestions
                 });
             }
@@ -2547,6 +2550,7 @@ if (playerName && playerName !== "訪客") {
                 this.userAnswers = p.userAnswers || {};
                 this.timeRemaining = (typeof p.timeRemaining === 'number') ? p.timeRemaining : 75 * 60;
                 this.activeSessionId = p.activeSessionId || null;
+                this.quizStartedAt = p.quizStartedAt || p.savedAt || Date.now();
                 this.quizActive = true;
                 this.router('quiz');
                 const sylSuffix = { CORE: '・只練核心', NO_OUT: '・排除OUT', BM: '・只練選修' }[this.sylFilter] || '';
@@ -3095,6 +3099,20 @@ if (playerName && playerName !== "訪客") {
                 }
             }
 
+            // 裝置／瀏覽器簡稱（交卷詳情用）
+            detectDevice() {
+                const ua = navigator.userAgent || '';
+                let device = 'Desktop';
+                if (/iPad|Tablet|Android(?!.*Mobile)/i.test(ua)) device = 'Tablet';
+                else if (/Mobi|Android|iPhone|iPod/i.test(ua)) device = 'Mobile';
+                let browser = 'Other';
+                if (/Edg\//.test(ua)) browser = 'Edge';
+                else if (/Chrome\//.test(ua) && !/Edg\//.test(ua)) browser = 'Chrome';
+                else if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) browser = 'Safari';
+                else if (/Firefox\//.test(ua)) browser = 'Firefox';
+                return device + '/' + browser;
+            }
+
             // --- Google Sheet 即時紀錄 (總分 + 每題一行) ---
             logToGoogleSheet({ score, total, accuracy, answered }) {
                 try {
@@ -3105,6 +3123,8 @@ if (playerName && playerName !== "訪客") {
                     const nickname = sanitizeName(typeof playerName !== 'undefined' && playerName ? playerName : '');
                     const timestamp = new Date().toISOString();
                     const submissionId = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+                    const startedAtMs = this.quizStartedAt || Date.now();
+                    const durationSec = Math.max(0, Math.min(Math.round((Date.now() - startedAtMs) / 1000), 6 * 60 * 60));
                     const questions = this.currentQuestions.map((q, idx) => {
                         const ua = this.userAnswers[q.id];
                         return {
@@ -3125,6 +3145,9 @@ if (playerName && playerName !== "訪客") {
                         mode: this.mode,
                         score, total, accuracy,
                         answered: answered === undefined ? total : answered,
+                        startedAt: new Date(startedAtMs).toISOString(),
+                        durationSec,
+                        device: this.detectDevice(),
                         questions
                     };
                     console.log('[Sheet] 正在同步交卷紀錄', payload);
@@ -3145,7 +3168,7 @@ if (playerName && playerName !== "訪客") {
                     this.showToast('GOOGLE_SHEET_URL 未設定');
                     return Promise.resolve(false);
                 }
-                const payload = { timestamp: new Date().toISOString(), submissionId: 'TEST-' + Date.now(), nickname: '測試', year: '測試', mode: 'test', score: 1, total: 1, accuracy: 100, questions: [{ qid: 'TEST', qnum: 1, topic: '測試', qtext: '測試題目', userAns: 'A', correctAns: 'A', isCorrect: 1 }] };
+                const payload = { timestamp: new Date().toISOString(), submissionId: 'TEST-' + Date.now(), nickname: '測試', year: '測試', mode: 'practice', score: 1, total: 1, accuracy: 100, startedAt: new Date(Date.now() - 90000).toISOString(), durationSec: 90, device: this.detectDevice(), questions: [{ qid: 'TEST', qnum: 1, topic: '測試', qtext: '測試題目', userAns: 'A', correctAns: 'A', isCorrect: 1 }] };
                 console.log('[Sheet] 送出測試', payload);
                 return fetch(GOOGLE_SHEET_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }).then(() => { console.log('[Sheet] 測試已送出, 請查 Sheet'); return true; });
             }
